@@ -1,6 +1,12 @@
-from fastapi import FastAPI , HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from urllib.parse import urlparse
+from dotenv import load_dotenv
+import os
+import requests
+
+load_dotenv()
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 app = FastAPI(title="DEVProbe API")
 
@@ -18,11 +24,12 @@ def prase_github_URL (repo_url : str) :
     if prased_url.netloc != "github.com" :
         raise HTTPException(status_code=400, detail="Invalid GitHub URL")
     
+
     path_parts = prased_url.path.strip("/").split("/")
 
     if len(path_parts) < 2 :
         raise HTTPException(status_code=400, detail="Invalid GitHub URL")
-    owner, repo = path_parts[0], path_parts[1]
+    owner, repo = path_parts[0], path_parts[1].replace(".git", "")
     return owner, repo
 
 
@@ -37,3 +44,13 @@ def analyze_repository(request: URLRequest):
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+    def Github_headers () :
+        headers = {"Accept": "application/vnd.github+json"
+    }
+
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+
+    return headers
