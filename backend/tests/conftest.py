@@ -6,14 +6,16 @@ import requests
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.db.memory_store import MemoryScanStore
 from app.main import create_app
-from app.services import github_service
+from app.services import github_service, scan_service
 
 REPO_URL = "https://github.com/owner/repo"
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(monkeypatch):
+    monkeypatch.setattr(scan_service, "store", MemoryScanStore())
     monkeypatch.setattr(github_service, "get_settings", lambda: Settings())
     # Every automated test must explicitly opt into mocked upstream responses.
     monkeypatch.setattr(

@@ -12,3 +12,9 @@ class ServiceError(Exception):
 class InvalidRepositoryURL(ServiceError, ValueError):
     def __init__(self, message: str):
         super().__init__(message, status_code=400)
+
+
+class ScanExecutionError(ServiceError):
+    def __init__(self, scan_id: int, error: ServiceError):
+        super().__init__(error.message, error.status_code, error.headers)
+        self.scan_id = scan_id

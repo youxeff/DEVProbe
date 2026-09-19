@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.core.errors import ServiceError
+from app.core.errors import ScanExecutionError, ServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +12,12 @@ logger = logging.getLogger(__name__)
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ServiceError)
     async def service_error_handler(request: Request, error: ServiceError):
+        content = {"detail": error.message}
+        if isinstance(error, ScanExecutionError):
+            content.update(scan_id=error.scan_id, status="failed")
         return JSONResponse(
             status_code=error.status_code,
-            content={"detail": error.message},
+            content=content,
             headers=error.headers,
         )
 

@@ -1,18 +1,46 @@
-scans = {}
-next_scan_id = 1
+"""Single-process MVP storage. All callers receive independent snapshots."""
+
+from datetime import UTC, datetime
+from threading import Lock
+
+from app.core.errors import ServiceError
+from app.schemas.scan import ScanResponse
 
 
-def save_scan(scan_result):
-    global next_scan_id
+class MemoryScanStore:
+    def __init__(self, max_scans: int = 1000):
+        self._scans: dict[int, ScanResponse] = {}
+        self._next_id = 1
+        self._lock = Lock()
+        self.max_scans = max_scans
 
-    scan_id = next_scan_id
-    next_scan_id += 1
+    def create(self, scan: ScanResponse) -> ScanResponse:
+        with self._lock:
+            if len(self._scans) >= self.max_scans:
+                raise ServiceError("Temporary scan storage is full.", 503)
+            scan = scan.model_copy(deep=True, update={"id": self._next_id})
+            self._next_id += 1
+            self._scans[scan.id] = scan
+            return scan.model_copy(deep=True)
 
-    scan_result["id"] = scan_id
-    scans[scan_id] = scan_result
+    def get(self, scan_id: int) -> ScanResponse | None:
+        with self._lock:
+            scan = self._scans.get(scan_id)
+            return scan.model_copy(deep=True) if scan else None
 
-    return scan_id
+    def claim(self, scan_id: int) -> tuple[ScanResponse, bool]:
+        with self._lock:
+            scan = self._scans.get(scan_id)
+            if scan is None:
+                raise ServiceError("Scan not found.", 404)
+            claimed = scan.status == "pending"
+            if claimed:
+                scan.status = "running"
+                scan.started_at = datetime.now(UTC)
+            return scan.model_copy(deep=True), claimed
 
-
-def get_scan_by_id(scan_id: int):
-    return scans.get(scan_id)
+    def save(self, scan: ScanResponse) -> None:
+        with self._lock:
+            if scan.id not in self._scans:
+                raise ServiceError("Scan not found.", 404)
+            self._scans[scan.id] = scan.model_copy(deep=True)

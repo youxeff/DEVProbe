@@ -1,29 +1,19 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
 
-from app.schemas.scan import ScanRequest
-from app.services.scan_service import create_scan_result
-from app.db.memory_store import save_scan, get_scan_by_id
+from fastapi import APIRouter, Path
 
+from app.schemas.scan import ScanCreatedResponse, ScanRequest, ScanResponse
+from app.services import scan_service
 
 router = APIRouter()
 
 
-@router.post("")
+@router.post("", response_model=ScanCreatedResponse)
 def create_scan(payload: ScanRequest):
-    scan_result = create_scan_result(payload.repo_url, payload.pr_number)
-    scan_id = save_scan(scan_result)
-
-    return {
-        "scan_id": scan_id,
-        "status": scan_result["status"]
-    }
+    scan = scan_service.create_scan(payload.repo_url, payload.pr_number)
+    return {"scan_id": scan.id, "status": scan.status}
 
 
-@router.get("/{scan_id}")
-def get_scan(scan_id: int):
-    scan = get_scan_by_id(scan_id)
-
-    if not scan:
-        raise HTTPException(status_code=404, detail="Scan not found.")
-
-    return scan
+@router.get("/{scan_id}", response_model=ScanResponse)
+def get_scan(scan_id: Annotated[int, Path(gt=0)]):
+    return scan_service.get_scan(scan_id)
