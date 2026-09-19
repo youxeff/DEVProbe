@@ -1,9 +1,7 @@
 from fastapi import FastAPI
 
-from app.api import health
-from app.api import repositories
-from app.api import pull_requests
-from app.api import scans
+from app.api import compatibility, health, pull_requests, repositories
+from app.api.errors import register_error_handlers
 
 
 def create_app() -> FastAPI:
@@ -16,7 +14,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router, tags=["Health"])
     app.include_router(repositories.router, prefix="/repositories", tags=["Repositories"])
     app.include_router(pull_requests.router, prefix="/pull-requests", tags=["Pull Requests"])
-    app.include_router(scans.router, prefix="/scans", tags=["Scans"])
+    app.include_router(compatibility.router, tags=["Compatibility"])
+    register_error_handlers(app)
 
     return app
 

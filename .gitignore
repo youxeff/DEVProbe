@@ -15,3 +15,12 @@ frontend/out/
 
 # OS
 .DS_Store
+
+# Local development and test outputs
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env.*
+!.env.example
