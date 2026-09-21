@@ -79,7 +79,6 @@ github_service._get = github_response
 # Controlled provider response for browser rendering; never used by app.main.
 
 
-
 ai_service.get_settings = lambda: Settings(ai_enabled=True, openai_api_key=SecretStr("test-only"))
 ai_service._send = lambda *args: {
     "status": "completed",
@@ -95,9 +94,7 @@ ai_service._send = lambda *args: {
                             "summary": "This fixture changes authentication code.",
                             "risks": ["Application changes have no corresponding test additions."],
                             "suggested_tests": ["Test the changed validation paths."],
-                            "recommended_fixes": [
-                                "Review the possible secret and debug output."
-                            ],
+                            "recommended_fixes": ["Review the possible secret and debug output."],
                         }
                     ),
                 }

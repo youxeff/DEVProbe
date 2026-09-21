@@ -3,6 +3,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -13,6 +14,8 @@ class Settings(BaseModel):
 
     app_env: str = "development"
     database_url: str = Field(default="sqlite:///./devprobe.db", repr=False)
+    scan_mode: Literal["sync", "async"] = "sync"
+    redis_url: str = Field(default="redis://127.0.0.1:6379/0", repr=False)
     ai_enabled: bool = False
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
@@ -33,6 +36,8 @@ def get_settings() -> Settings:
     return Settings(
         app_env=os.getenv("APP_ENV", "development"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///./devprobe.db"),
+        scan_mode=os.getenv("SCAN_MODE", "sync"),
+        redis_url=os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
         ai_enabled=os.getenv("AI_ENABLED", "false").lower() == "true",
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),

@@ -31,7 +31,7 @@ export default function ScanPage({
     mutate,
   } = useSWR(["scan", id], () => api.scan(id), {
     refreshInterval: (data) =>
-      data && ["pending", "running"].includes(data.status) ? 1500 : 0,
+      !data || ["pending", "running"].includes(data.status) ? 1500 : 0,
     shouldRetryOnError: false,
   });
   if (error) return <ErrorState error={error} retry={() => mutate()} />;

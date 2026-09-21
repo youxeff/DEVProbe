@@ -79,3 +79,16 @@ branch/PR has been created. Local milestone commits retain the work.
 - Frontend lint, TypeScript, production build, and browser journey through
   scan history/trends passed. Charts show the latest 30 completed scans;
   workspace totals include the complete matching dataset.
+
+## M7 — background scans
+
+- 170 backend tests passed. Async creation returns pending, duplicate delivery
+  is claimed once, and lost dispatches remain durable in SQL for recovery.
+- Ran actual Redis 6.2.14, a separate Celery 5.6.3 worker, and Uvicorn: POST
+  returned pending; the worker completed a persisted scan with 4 findings and
+  risk 16. Re-delivery did not rerun it. Providers used deterministic fixtures.
+- Browser test verified pending → running → completed polling. It caught and
+  fixed polling initialization before initial data arrived.
+- Celery Beat retries pending dispatches; stale running scans fail after the
+  worker execution window. They require a new scan instead of replaying AI
+  charges automatically. Queue contains only scan IDs, not customer source.

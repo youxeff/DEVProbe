@@ -75,6 +75,8 @@ class SQLScanStore:
             row = session.get(Scan, scan.id)
             if row is None:
                 raise ServiceError("Scan not found.", 404)
+            if row.status == "failed" and scan.status == "completed":
+                raise ServiceError("This scan already expired; start a new scan.", 409)
             for key, value in scan.model_dump(exclude={"id", "issues", "ai_review"}).items():
                 setattr(row, key, value)
             if scan.ai_review:

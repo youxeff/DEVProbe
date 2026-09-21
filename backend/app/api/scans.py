@@ -4,14 +4,14 @@ from fastapi import APIRouter, Path, Query
 
 from app.schemas.analytics import ScanPage
 from app.schemas.scan import ScanCreatedResponse, ScanRequest, ScanResponse
-from app.services import analytics_service, scan_service
+from app.services import analytics_service, job_service, scan_service
 
 router = APIRouter()
 
 
 @router.post("", response_model=ScanCreatedResponse)
 def create_scan(payload: ScanRequest):
-    scan = scan_service.create_scan(payload.repo_url, payload.pr_number)
+    scan = job_service.submit(payload.repo_url, payload.pr_number)
     return {"scan_id": scan.id, "status": scan.status}
 
 

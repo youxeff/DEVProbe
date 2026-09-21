@@ -44,6 +44,11 @@ def run_json(command: list[str], workspace: Path, *, timeout: float = 40, codes=
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
                 raise AnalyzerError("execution timed out") from None
+            except BaseException:
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                raise
             if process.returncode not in codes:
                 raise AnalyzerError("tool execution failed")
             stdout.seek(0)

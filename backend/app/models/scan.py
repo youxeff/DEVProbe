@@ -25,6 +25,8 @@ class Scan(Base):
     repo_url: Mapped[str] = mapped_column(String(500))
     pr_number: Mapped[int] = mapped_column()
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dispatch_attempts: Mapped[int] = mapped_column(default=0)
     trigger_source: Mapped[str] = mapped_column(String(20), default="manual")
     head_sha: Mapped[str | None] = mapped_column(String(64))
     base_sha: Mapped[str | None] = mapped_column(String(64))
