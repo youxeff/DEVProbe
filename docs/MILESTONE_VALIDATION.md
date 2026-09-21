@@ -115,3 +115,34 @@ branch/PR has been created. Local milestone commits retain the work.
 - Added GitHub Checks with one local record per repository/commit and remote `external_id` recovery. Repeated scans update the existing check. Output consists of application-owned metrics; source text and AI instructions cannot control posting. Automatic publication is opt-in per installation.
 - Validation: **182 backend tests passed** including JWT verification, token caching, signature rejection, duplicate deliveries, revocation, stale commits, ownership denial, and check reuse. Ruff passed; clean SQLite migrations upgrade/downgrade/re-upgrade and schema comparison passed.
 - GitHub App/OAuth transport is mocked in automated tests. Live installation, webhook delivery, and Check publication require configured App credentials and a reachable HTTPS callback. No real PR comments or Checks were posted. Authenticated connection/settings UI is added in Milestone 10.
+
+## Milestone 10 — SaaS foundation
+
+- Added Argon2id account credentials; opaque hashed/expiring/revocable sessions; session-bound CSRF and Origin checks; SQL-backed throttling; production configuration guards and input-redacted configuration errors.
+- Added organizations, memberships, expiring invitation links, owner/admin/member/viewer roles, last-owner protection, tenant-scoped repository/scan/history/analytics/settings reads, and isolation of legacy unowned data. Users who lose all memberships cannot fall back into local-mode data and can create a new organization.
+- Added transactional scan/repository/member quotas, monthly usage counters, safe audit events, and structured request logs. Queue workers load the persisted tenant; they never receive a tenant choice in the job payload.
+- Added authenticated GitHub App connection settings with one-time user-bound OAuth state and PKCE, owner/admin verification, scoped disconnection, and explicit/opt-in Check output.
+- Added optional Stripe-hosted checkout and customer portal. Signed webhooks deduplicate and reconcile current provider state; client-supplied plan/price fields do not grant entitlement. Repeated checkout requests reuse an open session. Tests exercised the actual Stripe SDK webhook parser and mocked provider transport. No live charges were attempted.
+- Added login/registration, organization selector, invitation acceptance, members/roles, usage, audit, GitHub connection, billing, password-change, and Check publication UI. Screenshots were captured and visually inspected; mobile settings overflow was tested.
+- Validation: **194 backend tests passed**; Ruff passed. Frontend lint, TypeScript check, and production build passed. Browser tests passed for the complete repository/PR/scan/history flow, errors, mobile navigation, pending/running polling, and authenticated registration/scan/settings/tenant-isolation/logout.
+- The real Redis + separate Celery + Uvicorn integration was rerun with authentication enabled: pending → tenant-owned completed scan; duplicate delivery preserved the result. Latest migrations passed against PGlite's PostgreSQL wire protocol/JSONB implementation and clean SQLite upgrade/downgrade/re-upgrade. This is not a claim of native PostgreSQL or Docker daemon testing.
+
+## Final verification summary — 2026-09-21
+
+| Gate | Observed result |
+| --- | --- |
+| Backend regression suite | 194 passed; one non-failing Starlette/httpx TestClient deprecation warning |
+| Ruff; frontend ESLint; TypeScript | Passed |
+| Next.js production build | Passed; all product/account routes built |
+| Chromium browser workflows | 5 passed (four local-workspace cases plus one authenticated case); run separately because this workspace uses a single-process Chromium build |
+| Actual static analyzer executables | Bandit, Radon, ESLint, Semgrep fixture tests passed |
+| Authenticated queue workflow | Passed with real Redis and a separate Celery process |
+| SQL migration/persistence tests | Clean SQLite cycle passed; PostgreSQL protocol/JSONB/claim/reconnect/cascade check passed through PGlite |
+| Compose configuration | Passed `docker compose config --quiet` with non-secret validation input |
+| Native Docker build/boot and PostgreSQL 16 | Not run: no Docker daemon/native service in this workspace; CI jobs provided |
+| Remote GitHub Actions | Not run: current GitHub connection denies writes |
+| Live public GitHub | Earlier successful `psf/requests#7616` scan recorded in `VALIDATION.md`. The final 2026-09-21 retry could not reach GitHub and correctly returned safe HTTP 503 with a persisted failed scan ID. No fresh successful live scan is claimed. |
+| Live OpenAI / GitHub App / Stripe | Not activated: provider credentials absent; contract/error/security paths tested with controlled transport |
+| Commercial release clearance | Not claimed; dependency inventory/review provided, exact images/hosted terms and operational controls still need release review |
+
+Current branch: `codex/devprobe-scan-foundation`. Changes are committed locally. Git push lacks a usable write credential; the connected GitHub write API returned `403 Resource not accessible by integration`. No remote branch, PR, merge, hosted demo, or deployment is claimed. A complete patch is provided for review/import without changing the user's main branch.
