@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import useSWR from "swr";
 import {
   Activity,
+  ChartNoAxesCombined,
   ArrowUpRight,
   Blocks,
   BookOpen,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
+  { href: "/history", label: "Scan history", icon: ChartNoAxesCombined },
   { href: "/architecture", label: "How it works", icon: Blocks },
 ];
 

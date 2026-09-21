@@ -1,4 +1,6 @@
 import type {
+  Analytics,
+  ScanPage,
   ChangedFile,
   PullRequest,
   Repository,
@@ -47,6 +49,8 @@ export async function request<T>(
 export const post = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body) });
 export const api = {
+  analytics: () => request<Analytics>("/analytics"),
+  scans: (offset = 0) => request<ScanPage>(`/scans?offset=${offset}&limit=25`),
   health: () => request<{ status: string }>("/health"),
   repositories: () => request<Repository[]>("/repositories"),
   repository: (id: string | number) =>

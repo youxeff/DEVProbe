@@ -101,3 +101,34 @@ export interface Scan {
   issues: Issue[];
   analysis_warnings: string[];
 }
+
+export interface Analytics {
+  total_scans: number;
+  completed_scans: number;
+  failed_scans: number;
+  prs_analyzed: number;
+  files_analyzed: number;
+  changed_lines_analyzed: number;
+  total_issues: number;
+  average_risk_score: number | null;
+  average_duration_seconds: number | null;
+  failure_rate: number;
+  ai_reviews: number;
+  ai_input_tokens: number;
+  ai_output_tokens: number;
+  ai_estimated_cost: number | null;
+  severity_counts: Record<string, number>;
+  category_counts: Record<string, number>;
+  trend: {
+    scan_id: number;
+    created_at: string;
+    risk_score: number;
+    total_issues: number;
+  }[];
+}
+export interface ScanPage {
+  items: Scan[];
+  total: number;
+  offset: number;
+  limit: number;
+}

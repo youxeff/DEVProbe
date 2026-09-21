@@ -29,7 +29,9 @@ test("repository to PR to persisted scan and issue filters", async ({
   await expect(
     page.getByText("Code changed without", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", {name:"Suggested tests"})).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Suggested tests" }),
+  ).toBeVisible();
   await page.screenshot({
     path: "../docs/screenshots/scan-result.png",
     fullPage: true,
@@ -40,6 +42,13 @@ test("repository to PR to persisted scan and issue filters", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Scan #/ }).first(),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Scan history", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Every scan tells a story." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Risk score over time" }),
   ).toBeVisible();
 });
 test("repository errors are useful", async ({ page }) => {

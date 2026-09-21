@@ -70,3 +70,12 @@ branch/PR has been created. Local milestone commits retain the work.
 - Enabled only with AI_ENABLED=true and OPENAI_API_KEY. No key is configured in
   this workspace: provider and token accounting checks used test responses.
   Estimated cost stays null until per-million rates are configured explicitly.
+
+## M6 — history and analytics
+
+- 168 backend tests passed. Aggregate totals, completed-only risk/duration
+  averages, failure rate, distinct PR count, category/severity counts, pagination,
+  and honest empty states verified.
+- Frontend lint, TypeScript, production build, and browser journey through
+  scan history/trends passed. Charts show the latest 30 completed scans;
+  workspace totals include the complete matching dataset.
