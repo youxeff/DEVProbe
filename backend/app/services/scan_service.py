@@ -9,7 +9,7 @@ from app.core.errors import ScanExecutionError, ServiceError
 from app.db.scan_store import SQLScanStore
 from app.schemas.pull_request import ChangedFileResponse
 from app.schemas.scan import ScanResponse, TriggerSource
-from app.services import analyzer_service, github_service, scoring_service
+from app.services import ai_service, analyzer_service, github_service, scoring_service
 
 logger = logging.getLogger(__name__)
 store = SQLScanStore()
@@ -104,6 +104,11 @@ def execute_scan(scan_id: int) -> ScanResponse:
             scan.changed_files_count,
             scan.total_changed_lines,
         )
+        ai = ai_service.generate_review(scan)
+        scan.ai_status, scan.ai_review = ai.status, ai.review
+        scan.ai_model = ai.model
+        scan.ai_input_tokens, scan.ai_output_tokens = ai.input_tokens, ai.output_tokens
+        scan.ai_estimated_cost = ai.estimated_cost
         scan.status = "completed"
     except Exception as error:
         safe_error = (

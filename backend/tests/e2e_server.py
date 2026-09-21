@@ -1,11 +1,14 @@
 """Browser test server: real routes/database/analyzers, deterministic GitHub boundary."""
 
+import json
 import os
 
-from app.core.config import get_settings
+from pydantic import SecretStr
+
+from app.core.config import Settings, get_settings
 from app.core.errors import ServiceError
 from app.main import app as app
-from app.services import github_service
+from app.services import ai_service, github_service
 
 os.environ["EXTERNAL_ANALYZERS"] = ""
 get_settings.cache_clear()
@@ -72,3 +75,33 @@ def github_response(url, message, params=None):
 
 
 github_service._get = github_response
+
+# Controlled provider response for browser rendering; never used by app.main.
+
+
+
+ai_service.get_settings = lambda: Settings(ai_enabled=True, openai_api_key=SecretStr("test-only"))
+ai_service._send = lambda *args: {
+    "status": "completed",
+    "usage": {"input_tokens": 100, "output_tokens": 80},
+    "output": [
+        {
+            "type": "message",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": json.dumps(
+                        {
+                            "summary": "This fixture changes authentication code.",
+                            "risks": ["Application changes have no corresponding test additions."],
+                            "suggested_tests": ["Test the changed validation paths."],
+                            "recommended_fixes": [
+                                "Review the possible secret and debug output."
+                            ],
+                        }
+                    ),
+                }
+            ],
+        }
+    ],
+}

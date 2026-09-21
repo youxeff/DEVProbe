@@ -51,6 +51,11 @@ class Scan(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_reason: Mapped[str | None] = mapped_column(Text)
+    ai_status: Mapped[str] = mapped_column(String(20), default="disabled")
+    ai_model: Mapped[str | None] = mapped_column(String(100))
+    ai_input_tokens: Mapped[int] = mapped_column(default=0)
+    ai_output_tokens: Mapped[int] = mapped_column(default=0)
+    ai_estimated_cost: Mapped[float | None] = mapped_column()
     tool_executions: Mapped[list] = mapped_column(JSON_TYPE, default=list)
     analysis_warnings: Mapped[list] = mapped_column(JSON_TYPE, default=list)
     issues: Mapped[list["Issue"]] = relationship(  # noqa: F821

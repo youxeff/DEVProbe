@@ -13,6 +13,11 @@ class Settings(BaseModel):
 
     app_env: str = "development"
     database_url: str = Field(default="sqlite:///./devprobe.db", repr=False)
+    ai_enabled: bool = False
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-4.1-mini"
+    ai_input_price_per_million: float | None = Field(default=None, ge=0)
+    ai_output_price_per_million: float | None = Field(default=None, ge=0)
     external_analyzers: str = ""
     analyzer_max_files: int = Field(default=50, ge=1, le=100)
     github_token: SecretStr | None = None
@@ -28,6 +33,11 @@ def get_settings() -> Settings:
     return Settings(
         app_env=os.getenv("APP_ENV", "development"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///./devprobe.db"),
+        ai_enabled=os.getenv("AI_ENABLED", "false").lower() == "true",
+        openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+        ai_input_price_per_million=os.getenv("AI_INPUT_PRICE_PER_MILLION") or None,
+        ai_output_price_per_million=os.getenv("AI_OUTPUT_PRICE_PER_MILLION") or None,
         external_analyzers=os.getenv("EXTERNAL_ANALYZERS", "bandit,radon,eslint,semgrep"),
         github_token=os.getenv("GITHUB_TOKEN") or None,
         github_timeout_seconds=os.getenv("GITHUB_TIMEOUT_SECONDS", "10"),

@@ -54,7 +54,25 @@ export interface ChangedFile {
   patch: string | null;
 }
 export type ScanStatus = "pending" | "running" | "completed" | "failed";
+export interface AIReview {
+  summary: string;
+  risks: string[];
+  suggested_tests: string[];
+  recommended_fixes: string[];
+  model_name: string;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost: number | null;
+}
 export interface Scan {
+  ai_status: "disabled" | "completed" | "failed";
+  ai_review: AIReview | null;
+  tool_executions: {
+    tool: string;
+    status: string;
+    duration_seconds: number;
+    files_supplied: number;
+  }[];
   id: number;
   repository_id: number | null;
   repo_url: string;

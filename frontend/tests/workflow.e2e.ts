@@ -29,6 +29,7 @@ test("repository to PR to persisted scan and issue filters", async ({
   await expect(
     page.getByText("Code changed without", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", {name:"Suggested tests"})).toBeVisible();
   await page.screenshot({
     path: "../docs/screenshots/scan-result.png",
     fullPage: true,

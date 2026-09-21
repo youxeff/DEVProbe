@@ -7,7 +7,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errors import ServiceError
 from app.db.session import session_scope
-from app.models import Issue, PullRequest, Scan
+from app.models import AIReview, Issue, PullRequest, Scan
+from app.schemas.ai_review import AIReviewResponse
 from app.schemas.issue import IssueResponse
 from app.schemas.scan import ScanResponse
 from app.services.repository_service import ensure_pull_request, ensure_repository
@@ -17,7 +18,7 @@ def snapshot(row: Scan) -> ScanResponse:
     values = {
         key: getattr(row, key)
         for key in ScanResponse.model_fields
-        if key != "issues" and hasattr(row, key)
+        if key not in {"issues", "ai_review"} and hasattr(row, key)
     }
     for key in ("created_at", "started_at", "completed_at"):
         if values.get(key) and values[key].tzinfo is None:
@@ -28,6 +29,10 @@ def snapshot(row: Scan) -> ScanResponse:
         )
         for issue in row.issues
     ]
+    if row.ai_review:
+        values["ai_review"] = {
+            key: getattr(row.ai_review, key) for key in AIReviewResponse.model_fields
+        }
     return ScanResponse.model_validate(values)
 
 
@@ -36,7 +41,9 @@ class SQLScanStore:
         with session_scope() as session:
             repo = ensure_repository(session, scan.repo_url, scan.organization_id)
             pull = ensure_pull_request(session, repo.id, scan.pr_number)
-            values = scan.model_dump(exclude={"id", "issues", "repository_id", "pull_request_id"})
+            values = scan.model_dump(
+                exclude={"id", "issues", "ai_review", "repository_id", "pull_request_id"}
+            )
             row = Scan(**values, repository_id=repo.id, pull_request_id=pull.id)
             session.add(row)
             session.flush()
@@ -68,8 +75,14 @@ class SQLScanStore:
             row = session.get(Scan, scan.id)
             if row is None:
                 raise ServiceError("Scan not found.", 404)
-            for key, value in scan.model_dump(exclude={"id", "issues"}).items():
+            for key, value in scan.model_dump(exclude={"id", "issues", "ai_review"}).items():
                 setattr(row, key, value)
+            if scan.ai_review:
+                if row.ai_review is None:
+                    row.ai_review = AIReview(**scan.ai_review.model_dump())
+                else:
+                    for key, value in scan.ai_review.model_dump().items():
+                        setattr(row.ai_review, key, value)
             session.execute(delete(Issue).where(Issue.scan_id == scan.id))
             session.add_all([Issue(scan_id=scan.id, **issue.model_dump()) for issue in scan.issues])
 

@@ -56,3 +56,17 @@ branch/PR has been created. Local milestone commits retain the work.
   [Radon](https://radon.readthedocs.io/en/latest/commandline.html),
   [ESLint](https://eslint.org/docs/latest/use/command-line-interface), and
   [Semgrep](https://docs.semgrep.dev/cli-reference) documentation.
+
+## M5 — AI-assisted review
+
+- 166 backend tests passed. Structured output, invalid/refused output handling,
+  bounded input, provider failure isolation, persistence, usage and configured
+  cost calculations tested. AI output rendering passed the Chromium journey.
+- Uses the [OpenAI Responses structured-output contract](https://developers.openai.com/api/docs/guides/structured-outputs).
+  Sends normalized findings and metrics only: no patches, PR descriptions,
+  complete source, credentials, or tool access. AI cannot publish to GitHub.
+- Max 50 findings, 30 filenames, 20,000 input characters, 1,200 output tokens,
+  30-second timeout; provider response storage disabled. No automatic retries.
+- Enabled only with AI_ENABLED=true and OPENAI_API_KEY. No key is configured in
+  this workspace: provider and token accounting checks used test responses.
+  Estimated cost stays null until per-million rates are configured explicitly.

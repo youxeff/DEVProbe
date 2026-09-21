@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.ai_review import AIReviewResponse
 from app.schemas.issue import IssueResponse
 from app.schemas.repository import RepoUrlRequest
 
@@ -52,5 +53,11 @@ class ScanResponse(BaseModel):
     completed_at: datetime | None = None
     failure_reason: str | None = None
     issues: list[IssueResponse] = Field(default_factory=list)
+    ai_status: Literal["disabled", "completed", "failed"] = "disabled"
+    ai_model: str | None = None
+    ai_input_tokens: int = 0
+    ai_output_tokens: int = 0
+    ai_estimated_cost: float | None = None
+    ai_review: AIReviewResponse | None = None
     tool_executions: list[dict] = Field(default_factory=list)
     analysis_warnings: list[str] = Field(default_factory=list)
