@@ -6,6 +6,8 @@ import requests
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.db import session as db_session
+from app.db.database import Base, build_engine
 from app.db.memory_store import MemoryScanStore
 from app.main import create_app
 from app.services import github_service, scan_service
@@ -14,13 +16,18 @@ REPO_URL = "https://github.com/owner/repo"
 
 
 @pytest.fixture(autouse=True)
-def isolated_environment(monkeypatch):
+def isolated_environment(monkeypatch, tmp_path):
+    engine = build_engine(f"sqlite:///{tmp_path / 'test.db'}")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(db_session, "get_engine", lambda: engine)
     monkeypatch.setattr(scan_service, "store", MemoryScanStore())
     monkeypatch.setattr(github_service, "get_settings", lambda: Settings())
     # Every automated test must explicitly opt into mocked upstream responses.
     monkeypatch.setattr(
         requests, "get", Mock(side_effect=AssertionError("Unexpected network call"))
     )
+    yield
+    engine.dispose()
 
 
 @pytest.fixture
@@ -56,6 +63,7 @@ def github_mock(monkeypatch):
 @pytest.fixture
 def repository_data():
     return {
+        "id": 42,
         "owner": {"login": "owner"},
         "name": "repo",
         "full_name": "owner/repo",

@@ -6,13 +6,13 @@ from datetime import UTC, datetime
 from time import perf_counter
 
 from app.core.errors import ScanExecutionError, ServiceError
-from app.db.memory_store import MemoryScanStore
+from app.db.scan_store import SQLScanStore
 from app.schemas.pull_request import ChangedFileResponse
 from app.schemas.scan import ScanResponse, TriggerSource
 from app.services import analyzer_service, github_service, scoring_service
 
 logger = logging.getLogger(__name__)
-store = MemoryScanStore()
+store = SQLScanStore()
 MAX_PATCH_CHARACTERS = 16_000_000
 
 
@@ -52,6 +52,7 @@ def execute_scan(scan_id: int) -> ScanResponse:
     logger.info("scan_started scan_id=%s pr_number=%s", scan.id, scan.pr_number)
     try:
         pull = github_service.fetch_pull_request(scan.repo_url, scan.pr_number)
+        store.update_pull_request(scan.id, pull)
         if pull["changed_files"] > 3000:
             raise ServiceError("This PR exceeds GitHub's 3000-file retrieval limit.", 422)
         files = [

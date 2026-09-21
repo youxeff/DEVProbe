@@ -37,6 +37,8 @@ def test_metadata_preserves_contract(client, response, github_mock, repository_d
     result = client.post(path, json=REPO)
     assert result.status_code == 200
     assert result.json() == {
+        "id": 1,
+        "github_repo_id": 42,
         "owner": "owner",
         "name": "repo",
         "full_name": "owner/repo",

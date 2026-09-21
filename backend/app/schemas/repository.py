@@ -17,12 +17,14 @@ class ContributorResponse(BaseModel):
 
 
 class RepositoryResponse(BaseModel):
+    id: int | None = None
+    github_repo_id: int | None = None
     owner: str
     name: str
     full_name: str
     description: str | None
     html_url: str
-    default_branch: str
+    default_branch: str | None
     language: str | None
     stars: int
     forks: int

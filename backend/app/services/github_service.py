@@ -157,6 +157,7 @@ def fetch_repo_metadata(repo_url: str) -> dict:
     data, _ = _get(_resource_url(repo_url), "GitHub repository not found.")
     return {
         "owner": data["owner"]["login"],
+        "github_repo_id": data.get("id"),
         "name": data["name"],
         "full_name": data["full_name"],
         "description": data["description"],
@@ -222,6 +223,8 @@ def fetch_pull_request(repo_url: str, pr_number: int) -> dict:
         "changed_files": data["changed_files"],
         "head_sha": data["head"]["sha"],
         "base_sha": data["base"]["sha"],
+        "base_branch": data["base"].get("ref"),
+        "head_branch": data["head"].get("ref"),
     }
 
 

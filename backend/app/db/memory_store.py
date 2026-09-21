@@ -8,6 +8,9 @@ from app.schemas.scan import ScanResponse
 
 
 class MemoryScanStore:
+    def update_pull_request(self, scan_id: int, metadata: dict) -> None:
+        pass  # Test double; repository/PR persistence is exercised using SQLScanStore.
+
     def __init__(self, max_scans: int = 1000):
         self._scans: dict[int, ScanResponse] = {}
         self._next_id = 1

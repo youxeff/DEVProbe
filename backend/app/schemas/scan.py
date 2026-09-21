@@ -21,6 +21,9 @@ class ScanCreatedResponse(BaseModel):
 
 class ScanResponse(BaseModel):
     id: int = 0
+    organization_id: int | None = None
+    repository_id: int | None = None
+    pull_request_id: int | None = None
     repo_url: str
     pr_number: int
     status: ScanStatus = "pending"
