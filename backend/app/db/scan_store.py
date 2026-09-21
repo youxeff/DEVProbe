@@ -37,17 +37,19 @@ def snapshot(row: Scan) -> ScanResponse:
 
 
 class SQLScanStore:
-    def create(self, scan: ScanResponse) -> ScanResponse:
-        with session_scope() as session:
-            repo = ensure_repository(session, scan.repo_url, scan.organization_id)
-            pull = ensure_pull_request(session, repo.id, scan.pr_number)
-            values = scan.model_dump(
-                exclude={"id", "issues", "ai_review", "repository_id", "pull_request_id"}
-            )
-            row = Scan(**values, repository_id=repo.id, pull_request_id=pull.id)
-            session.add(row)
-            session.flush()
-            return snapshot(row)
+    def create(self, scan: ScanResponse, session=None) -> ScanResponse:
+        if session is None:
+            with session_scope() as owned:
+                return self.create(scan, owned)
+        repo = ensure_repository(session, scan.repo_url, scan.organization_id)
+        pull = ensure_pull_request(session, repo.id, scan.pr_number)
+        values = scan.model_dump(
+            exclude={"id", "issues", "ai_review", "repository_id", "pull_request_id"}
+        )
+        row = Scan(**values, repository_id=repo.id, pull_request_id=pull.id)
+        session.add(row)
+        session.flush()
+        return snapshot(row)
 
     def get(self, scan_id: int) -> ScanResponse | None:
         with session_scope() as session:

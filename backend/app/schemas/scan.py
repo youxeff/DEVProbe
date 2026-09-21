@@ -29,6 +29,7 @@ class ScanResponse(BaseModel):
     pr_number: int
     status: ScanStatus = "pending"
     trigger_source: TriggerSource = "manual"
+    expected_head_sha: str | None = None
     head_sha: str | None = None
     base_sha: str | None = None
     scoring_version: str = "1"

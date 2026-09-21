@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import analytics, compatibility, health, pull_requests, repositories, scans
+from app.api import analytics, compatibility, health, pull_requests, repositories, scans, webhooks
 from app.api.errors import register_error_handlers
 
 
@@ -17,6 +17,7 @@ def create_app() -> FastAPI:
     app.include_router(compatibility.router, tags=["Compatibility"])
     app.include_router(scans.router, prefix="/scans", tags=["Scans"])
     app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+    app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
     register_error_handlers(app)
 
     return app

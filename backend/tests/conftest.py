@@ -29,6 +29,9 @@ def isolated_environment(monkeypatch, tmp_path):
     monkeypatch.setattr(
         requests, "get", Mock(side_effect=AssertionError("Unexpected network call"))
     )
+    monkeypatch.setattr(
+        requests, "request", Mock(side_effect=AssertionError("Unexpected network call"))
+    )
     yield
     engine.dispose()
 

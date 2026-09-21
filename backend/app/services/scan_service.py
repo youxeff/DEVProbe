@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from time import perf_counter
 
+from app.core import context
 from app.core.errors import ScanExecutionError, ServiceError
 from app.db.scan_store import SQLScanStore
 from app.schemas.pull_request import ChangedFileResponse
@@ -17,19 +18,25 @@ MAX_PATCH_CHARACTERS = 16_000_000
 
 
 def create_pending_scan(
-    repo_url: str, pr_number: int, trigger_source: TriggerSource = "manual"
+    repo_url: str,
+    pr_number: int,
+    trigger_source: TriggerSource = "manual",
+    *,
+    expected_head_sha: str | None = None,
+    session=None,
 ) -> ScanResponse:
     owner, repo = github_service.parse_github_url(repo_url)
     if isinstance(pr_number, bool) or not isinstance(pr_number, int) or pr_number < 1:
         raise ServiceError("Pull request number must be a positive integer.", 422)
-    return store.create(
-        ScanResponse(
-            repo_url=f"https://github.com/{owner}/{repo}",
-            pr_number=pr_number,
-            trigger_source=trigger_source,
-            created_at=datetime.now(UTC),
-        )
+    pending = ScanResponse(
+        repo_url=f"https://github.com/{owner}/{repo}",
+        pr_number=pr_number,
+        trigger_source=trigger_source,
+        organization_id=context.organization_id.get(),
+        expected_head_sha=expected_head_sha,
+        created_at=datetime.now(UTC),
     )
+    return store.create(pending, session=session) if session is not None else store.create(pending)
 
 
 def create_scan(repo_url: str, pr_number: int) -> ScanResponse:
@@ -45,6 +52,26 @@ def get_scan(scan_id: int) -> ScanResponse:
 
 
 def execute_scan(scan_id: int) -> ScanResponse:
+    from app.services import integration_service
+
+    # Worker identity comes from the persisted job, never from a broker-supplied tenant ID.
+    existing = get_scan(scan_id)
+    with (
+        context.organization_scope(existing.organization_id),
+        integration_service.repository_credentials(existing.repo_url, existing.organization_id),
+    ):
+        scan = _execute_scan(scan_id)
+        if scan.status == "completed":
+            try:
+                integration_service.publish_scan(scan, automatic=True)
+            except Exception as error:
+                logger.warning(
+                    "check_publish_failed scan_id=%s error_type=%s", scan.id, type(error).__name__
+                )
+        return scan
+
+
+def _execute_scan(scan_id: int) -> ScanResponse:
     scan, claimed = store.claim(scan_id)
     if not claimed:
         return scan  # Repeated task delivery must not run the same scan twice.
@@ -52,6 +79,10 @@ def execute_scan(scan_id: int) -> ScanResponse:
     logger.info("scan_started scan_id=%s pr_number=%s", scan.id, scan.pr_number)
     try:
         pull = github_service.fetch_pull_request(scan.repo_url, scan.pr_number)
+        if scan.expected_head_sha and pull["head_sha"] != scan.expected_head_sha:
+            raise ServiceError(
+                "This webhook commit is no longer the PR head. Scan the latest commit.", 409
+            )
         store.update_pull_request(scan.id, pull)
         if pull["changed_files"] > 3000:
             raise ServiceError("This PR exceeds GitHub's 3000-file retrieval limit.", 422)

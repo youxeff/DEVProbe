@@ -23,6 +23,13 @@ class Settings(BaseModel):
     ai_output_price_per_million: float | None = Field(default=None, ge=0)
     external_analyzers: str = ""
     analyzer_max_files: int = Field(default=50, ge=1, le=100)
+    github_app_id: str | None = None
+    github_app_slug: str | None = None
+    github_private_key: SecretStr | None = None
+    github_webhook_secret: SecretStr | None = None
+    github_client_id: str | None = None
+    github_client_secret: SecretStr | None = None
+    public_url: str = "http://localhost:3000"
     github_token: SecretStr | None = None
     github_timeout_seconds: float = Field(default=10, gt=0, le=60)
     github_max_pages: int = Field(default=30, ge=1, le=100)
@@ -44,6 +51,13 @@ def get_settings() -> Settings:
         ai_input_price_per_million=os.getenv("AI_INPUT_PRICE_PER_MILLION") or None,
         ai_output_price_per_million=os.getenv("AI_OUTPUT_PRICE_PER_MILLION") or None,
         external_analyzers=os.getenv("EXTERNAL_ANALYZERS", "bandit,radon,eslint,semgrep"),
+        github_app_id=os.getenv("GITHUB_APP_ID") or None,
+        github_app_slug=os.getenv("GITHUB_APP_SLUG") or None,
+        github_private_key=os.getenv("GITHUB_PRIVATE_KEY") or None,
+        github_webhook_secret=os.getenv("GITHUB_WEBHOOK_SECRET") or None,
+        github_client_id=os.getenv("GITHUB_CLIENT_ID") or None,
+        github_client_secret=os.getenv("GITHUB_CLIENT_SECRET") or None,
+        public_url=os.getenv("PUBLIC_URL", "http://localhost:3000").rstrip("/"),
         github_token=os.getenv("GITHUB_TOKEN") or None,
         github_timeout_seconds=os.getenv("GITHUB_TIMEOUT_SECONDS", "10"),
         github_max_pages=os.getenv("GITHUB_MAX_PAGES", "30"),

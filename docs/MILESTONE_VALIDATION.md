@@ -107,3 +107,11 @@ branch/PR has been created. Local milestone commits retain the work.
 - This workspace has no Docker daemon. Images and the complete Compose stack
   have NOT been boot-tested here. CI has NOT run remotely because publishing
   remains blocked by GitHub write access. These are explicit remaining gates.
+
+## Milestone 9 — GitHub App integration
+
+- Added short-lived RS256 App JWTs and in-memory installation-token caching. Installation association requires a GitHub OAuth user who owns the account or is an active organization administrator. A remote installation cannot be reassigned across DevProbe organizations.
+- Added raw-body HMAC verification, bounded webhook bodies, durable pending scans, unique delivery/commit deduplication, and stale-head rejection. Webhooks always enqueue; the worker runs the same scan service. Revoked/suspended installations stop authorizing new scans.
+- Added GitHub Checks with one local record per repository/commit and remote `external_id` recovery. Repeated scans update the existing check. Output consists of application-owned metrics; source text and AI instructions cannot control posting. Automatic publication is opt-in per installation.
+- Validation: **182 backend tests passed** including JWT verification, token caching, signature rejection, duplicate deliveries, revocation, stale commits, ownership denial, and check reuse. Ruff passed; clean SQLite migrations upgrade/downgrade/re-upgrade and schema comparison passed.
+- GitHub App/OAuth transport is mocked in automated tests. Live installation, webhook delivery, and Check publication require configured App credentials and a reachable HTTPS callback. No real PR comments or Checks were posted. Authenticated connection/settings UI is added in Milestone 10.

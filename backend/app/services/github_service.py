@@ -2,6 +2,7 @@
 
 import json
 import re
+from threading import Lock
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -12,13 +13,27 @@ from app.core.errors import InvalidRepositoryURL, ServiceError
 API_ROOT = "https://api.github.com"
 
 
-def github_headers() -> dict[str, str]:
+def github_headers(url: str | None = None) -> dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "DevProbe/0.1",
     }
-    token = get_settings().github_token
+    from app.core.context import installation_id, organization_id
+
+    active = installation_id.get()
+    if active is None and url and organization_id.get() is not None:
+        from app.services.integration_service import installation_for_owner
+
+        parts = urlparse(url).path.split("/")
+        if len(parts) > 3 and parts[1] == "repos":
+            linked = installation_for_owner(parts[2], organization_id.get())
+            active = linked.github_installation_id if linked else None
+    if active is not None:
+        headers["Authorization"] = f"Bearer {installation_token(active)}"
+        return headers
+    # Shared development PAT must never authorize an organization-scoped request.
+    token = get_settings().github_token if organization_id.get() is None else None
     if token:
         headers["Authorization"] = f"Bearer {token.get_secret_value()}"
     return headers
@@ -88,7 +103,7 @@ def _get(url: str, not_found_message: str, params: dict | None = None):
         try:
             response = requests.get(
                 url,
-                headers=github_headers(),
+                headers=github_headers(url),
                 params=params,
                 timeout=(3, settings.github_timeout_seconds),
                 allow_redirects=False,
@@ -276,3 +291,178 @@ def fetch_file_at_commit(repo_url: str, filename: str, sha: str) -> str:
         return source.decode("utf-8")
     except (ValueError, KeyError, UnicodeDecodeError):
         raise ServiceError("Source file is not supported UTF-8 text.", 422) from None
+
+
+def app_request(method: str, url: str, token: str, *, payload=None, params=None):
+    """Explicit credentials for App/OAuth/Checks; never retry non-idempotent writes."""
+    if url != "https://github.com/login/oauth/access_token":
+        _trusted_api_url(url)
+    try:
+        with requests.request(
+            method,
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            json=payload,
+            params=params,
+            timeout=(3, 10),
+            allow_redirects=False,
+            stream=True,
+        ) as response:
+            if response.status_code not in (200, 201, 202, 204):
+                raise _error(response, "GitHub resource not found.")
+            if response.status_code == 204:
+                return {}, None
+            body = bytearray()
+            for chunk in response.iter_content(65536):
+                body.extend(chunk)
+                if len(body) > get_settings().github_max_response_bytes:
+                    raise ServiceError("GitHub response exceeds size limit.", 422)
+            try:
+                return json.loads(body), response.links.get("next", {}).get("url")
+            except (ValueError, UnicodeDecodeError):
+                raise ServiceError("GitHub returned an invalid response.") from None
+    except requests.RequestException:
+        raise ServiceError("GitHub could not be reached.", 503) from None
+
+
+def app_jwt() -> str:
+    import time
+
+    import jwt
+
+    settings = get_settings()
+    if not settings.github_app_id or not settings.github_private_key:
+        raise ServiceError("GitHub App is not configured.", 503)
+    now = int(time.time())
+    try:
+        return jwt.encode(
+            {"iat": now - 60, "exp": now + 540, "iss": settings.github_app_id},
+            settings.github_private_key.get_secret_value().replace("\\n", "\n"),
+            algorithm="RS256",
+        )
+    except Exception:
+        raise ServiceError("GitHub App signing is not configured correctly.", 503) from None
+
+
+# Short-lived installation tokens are never stored in the database.
+_token_cache = {}
+_token_lock = Lock()
+
+
+def installation_token(installation_id: int) -> str:
+    from datetime import UTC, datetime
+
+    now = datetime.now(UTC).timestamp()
+    with _token_lock:
+        cached = _token_cache.get(installation_id)
+        if cached and cached[1] > now + 60:
+            return cached[0]
+        data, _ = app_request(
+            "POST",
+            f"{API_ROOT}/app/installations/{installation_id}/access_tokens",
+            app_jwt(),
+            payload={},
+        )
+        expires = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00")).timestamp()
+        if len(_token_cache) > 1000:
+            _token_cache.clear()
+        _token_cache[installation_id] = (data["token"], expires)
+        return data["token"]
+
+
+def verify_installation_owner(user_token: str, installation_id: int) -> dict:
+    """Fail closed unless this GitHub user owns/administers the installation account."""
+    user, _ = app_request("GET", f"{API_ROOT}/user", user_token)
+    installation, _ = app_request(
+        "GET", f"{API_ROOT}/app/installations/{installation_id}", app_jwt()
+    )
+    account = installation["account"]
+    if account["type"] == "User":
+        permitted = account["id"] == user["id"]
+    elif account["type"] == "Organization":
+        membership, _ = app_request(
+            "GET", f"{API_ROOT}/user/memberships/orgs/{account['login']}", user_token
+        )
+        permitted = membership.get("state") == "active" and membership.get("role") == "admin"
+    else:
+        permitted = False
+    if not permitted or installation.get("suspended_at"):
+        raise ServiceError("GitHub account owner access is required for this installation.", 403)
+    return {
+        "github_installation_id": installation_id,
+        "account_login": account["login"],
+        "account_type": account["type"],
+        "active": True,
+    }
+
+
+def exchange_oauth_code(code: str) -> str:
+    settings = get_settings()
+    if not settings.github_client_id or not settings.github_client_secret:
+        raise ServiceError("GitHub OAuth is not configured.", 503)
+    data, _ = app_request(
+        "POST",
+        "https://github.com/login/oauth/access_token",
+        "",
+        payload={
+            "client_id": settings.github_client_id,
+            "client_secret": settings.github_client_secret.get_secret_value(),
+            "code": code,
+            "redirect_uri": settings.public_url + "/api/backend/github/callback",
+        },
+    )
+    if not data.get("access_token"):
+        raise ServiceError("GitHub authorization could not be completed.", 400)
+    return data["access_token"]
+
+
+def publish_check(
+    repo_url: str, sha: str, external_id: str, output: dict, check_id: int | None = None
+) -> int:
+    from app.core.context import installation_id
+
+    active = installation_id.get()
+    if active is None:
+        raise ServiceError("A GitHub App installation is required to publish checks.", 409)
+    token = installation_token(active)
+    if check_id is None:
+        url = _resource_url(repo_url, f"/commits/{sha}/check-runs")
+        for _ in range(get_settings().github_max_pages):
+            data, next_url = app_request(
+                "GET", url, token, params={"check_name": "DevProbe", "per_page": 100}
+            )
+            for row in data.get("check_runs", []):
+                if (
+                    row.get("external_id") == external_id
+                    and str((row.get("app") or {}).get("id")) == get_settings().github_app_id
+                ):
+                    check_id = row["id"]
+                    break
+            if check_id or not next_url:
+                break
+            url = _trusted_api_url(next_url)
+        else:
+            raise ServiceError("GitHub checks exceed pagination limit.", 422)
+    payload = {
+        "name": "DevProbe",
+        "status": "completed",
+        "conclusion": output["conclusion"],
+        "external_id": external_id,
+        "output": {"title": output["title"], "summary": output["summary"]},
+    }
+    if check_id is not None:
+        data, _ = app_request(
+            "PATCH", _resource_url(repo_url, f"/check-runs/{check_id}"), token, payload=payload
+        )
+    else:
+        data, _ = app_request(
+            "POST",
+            _resource_url(repo_url, "/check-runs"),
+            token,
+            payload={**payload, "head_sha": sha},
+        )
+    return data["id"]

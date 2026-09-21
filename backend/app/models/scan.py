@@ -28,6 +28,7 @@ class Scan(Base):
     queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatch_attempts: Mapped[int] = mapped_column(default=0)
     trigger_source: Mapped[str] = mapped_column(String(20), default="manual")
+    expected_head_sha: Mapped[str | None] = mapped_column(String(64))
     head_sha: Mapped[str | None] = mapped_column(String(64))
     base_sha: Mapped[str | None] = mapped_column(String(64))
     scoring_version: Mapped[str] = mapped_column(String(20), default="1")
