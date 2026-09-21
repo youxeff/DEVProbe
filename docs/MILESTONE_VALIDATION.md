@@ -92,3 +92,18 @@ branch/PR has been created. Local milestone commits retain the work.
 - Celery Beat retries pending dispatches; stale running scans fail after the
   worker execution window. They require a new scan instead of replaying AI
   charges automatically. Queue contains only scan IDs, not customer source.
+
+## M8 — containers and CI
+
+- Added separate backend/frontend images, worker and recovery scheduler services,
+  PostgreSQL/Redis volumes, readiness checks, migration-first startup, non-root
+  application users, read-only app filesystems, resource limits, and local-only ports.
+- Official Docker Compose 2.39.4 `config --quiet` passed. CI YAML parsed.
+- PostgreSQL protocol validation reran all migrations through the queue revision:
+  no schema drift; JSONB, claim, reconnect persistence and cascade checks passed
+  against the PGlite PostgreSQL runtime. Readiness tests passed.
+- CI defines backend lint/tests, a native PostgreSQL check, real queue test,
+  frontend lint/types/build/browser tests, image builds and a complete stack boot.
+- This workspace has no Docker daemon. Images and the complete Compose stack
+  have NOT been boot-tested here. CI has NOT run remotely because publishing
+  remains blocked by GitHub write access. These are explicit remaining gates.

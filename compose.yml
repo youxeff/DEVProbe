@@ -1,0 +1,79 @@
+name: devprobe
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-development}
+  DATABASE_URL: postgresql+psycopg://devprobe:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/devprobe
+  REDIS_URL: redis://redis:6379/0
+  SCAN_MODE: async
+  EXTERNAL_ANALYZERS: ${EXTERNAL_ANALYZERS:-bandit,radon,eslint,semgrep}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  AI_ENABLED: ${AI_ENABLED:-false}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+  AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-}
+  AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-}
+x-backend: &backend
+  build: ./backend
+  environment: *app-env
+  read_only: true
+  tmpfs: [/tmp:size=512m,mode=1777]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 2g
+  cpus: 2
+  pids_limit: 256
+  depends_on:
+    migrate: {condition: service_completed_successfully}
+    redis: {condition: service_healthy}
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: devprobe
+      POSTGRES_DB: devprobe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U devprobe -d devprobe']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7.2-bookworm
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./backend
+    environment: *app-env
+    command: [alembic, upgrade, head]
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck: {disable: true}
+  backend:
+    <<: *backend
+    ports: ['127.0.0.1:8000:8000']
+  worker:
+    <<: *backend
+    command: [celery, -A, app.workers.celery_app:celery_app, worker, --loglevel=INFO, --concurrency=2]
+    healthcheck: {disable: true}
+  scheduler:
+    <<: *backend
+    command: [celery, -A, app.workers.celery_app:celery_app, beat, --loglevel=INFO, --schedule=/tmp/celerybeat]
+    healthcheck: {disable: true}
+  frontend:
+    build: ./frontend
+    ports: ['127.0.0.1:3000:3000']
+    depends_on:
+      backend: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp:size=64m,mode=1777]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+volumes:
+  postgres-data:
+  redis-data:
