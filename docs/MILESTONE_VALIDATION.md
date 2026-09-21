@@ -22,3 +22,15 @@ The user approved pushing all work and opening a draft PR. Direct Git has no
 write credential; the connected GitHub integration returns HTTP 403
 `Resource not accessible by integration` for creating a Git tree. No remote
 branch/PR has been created. Local milestone commits retain the work.
+
+## M3 — browser MVP
+
+- Production Next.js build, TypeScript checks, and ESLint passed.
+- Chromium browser tests passed for the complete repository → PR → SQL-backed
+  scan → issue filter → reload → history flow, invalid URL/not-found states,
+  and mobile navigation/layout. GitHub responses were fixtures; the backend,
+  database, scoring, and UI were real.
+- The constrained workspace uses a separate Chromium launch per test because
+  its single-process browser exits between contexts. Normal CI uses Playwright's
+  standard browser. The screenshot is actual fixture test output, not product usage.
+- Added POST /pull-requests/{number}, an additive detail endpoint supporting closed PRs.

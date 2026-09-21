@@ -122,3 +122,11 @@ def test_unexpected_error_is_sanitized(client, github_mock):
     result = client.post("/pull-requests", json=REPO)
     assert result.status_code == 500
     assert result.json() == {"detail": "An internal error occurred."}
+
+
+def test_single_pull_endpoint(client, response, github_mock, pull_data):
+    github_mock(response(pull_data))
+    result = client.post("/pull-requests/12", json=REPO)
+    assert result.status_code == 200
+    assert result.json()["number"] == 12
+    assert "head_sha" not in result.json()
