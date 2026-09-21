@@ -7,6 +7,16 @@ import type {
   Scan,
   ScanStatus,
 } from "@/types";
+import type {
+  AuthSession,
+  Organization,
+  Member,
+  Usage,
+  GitHubSettings,
+  BillingStatus,
+  AuditEvent,
+  Role,
+} from "@/types/account";
 
 export class ApiError extends Error {
   constructor(
@@ -24,10 +34,26 @@ export async function request<T>(
 ): Promise<T> {
   let response: Response;
   try {
+    const csrf =
+      typeof document === "undefined"
+        ? ""
+        : document.cookie
+            .split("; ")
+            .find((row) => row.startsWith("dp_csrf="))
+            ?.split("=")[1];
+    const org =
+      typeof localStorage === "undefined"
+        ? null
+        : localStorage.getItem("devprobe-organization");
     response = await fetch(`/api/backend${path}`, {
       credentials: "same-origin",
       ...options,
-      headers: { "Content-Type": "application/json", ...options.headers },
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+        ...(org ? { "X-Organization-ID": org } : {}),
+        ...options.headers,
+      },
     });
   } catch {
     throw new ApiError(
@@ -49,6 +75,51 @@ export async function request<T>(
 export const post = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body) });
 export const api = {
+  session: () => request<AuthSession>("/auth/session"),
+  login: (body: { email: string; password: string }) =>
+    post("/auth/login", body),
+  register: (body: {
+    email: string;
+    password: string;
+    name: string;
+    organization_name: string;
+  }) => post("/auth/register", body),
+  logout: () => post("/auth/logout", {}),
+  changePassword: (current_password: string, new_password: string) =>
+    post("/auth/password", { current_password, new_password }),
+  createOrganization: (name: string) =>
+    post<Organization>("/organizations", { name }),
+  members: () => request<Member[]>("/organizations/members"),
+  invite: (email: string, role: Exclude<Role, "owner">) =>
+    post<{ invite_url: string }>("/organizations/invitations", { email, role }),
+  acceptInvitation: (token: string) =>
+    post<{ organization_id: number }>("/organizations/invitations/accept", {
+      token,
+    }),
+  changeMember: (id: number, role: Role) =>
+    request(`/organizations/members/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (id: number) =>
+    request(`/organizations/members/${id}`, { method: "DELETE" }),
+  usage: () => request<Usage>("/organizations/usage"),
+  audit: () => request<AuditEvent[]>("/organizations/audit"),
+  githubSettings: () => request<GitHubSettings>("/github"),
+  connectInstallation: (installation_id: number) =>
+    post<{ url: string }>("/github/connect", { installation_id }),
+  updateInstallation: (id: number, publish_checks: boolean) =>
+    request(`/github/installations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ publish_checks }),
+    }),
+  disconnectInstallation: (id: number) =>
+    request(`/github/installations/${id}`, { method: "DELETE" }),
+  publishCheck: (id: number) =>
+    post<{ check_run_id: number }>(`/github/scans/${id}/check`, {}),
+  billing: () => request<BillingStatus>("/billing"),
+  checkout: () => post<{ url: string }>("/billing/checkout", {}),
+  billingPortal: () => post<{ url: string }>("/billing/portal", {}),
   analytics: () => request<Analytics>("/analytics"),
   scans: (offset = 0) => request<ScanPage>(`/scans?offset=${offset}&limit=25`),
   health: () => request<{ status: string }>("/health"),

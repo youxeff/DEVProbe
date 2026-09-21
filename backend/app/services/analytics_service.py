@@ -1,14 +1,20 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core import context
 from app.db.scan_store import snapshot
 from app.db.session import session_scope
 from app.models import Issue, Scan
 from app.schemas.analytics import AnalyticsResponse, ScanPage, TrendPoint
 from app.services.repository_service import get_repository
 
+_CURRENT = object()
 
-def conditions(repository_id=None, organization_id=None):
+
+def conditions(repository_id=None, organization_id=_CURRENT):
+    organization_id = (
+        context.organization_id.get() if organization_id is _CURRENT else organization_id
+    )
     if repository_id is not None:
         get_repository(repository_id, organization_id)
     return [Scan.organization_id == organization_id] + (
@@ -16,7 +22,7 @@ def conditions(repository_id=None, organization_id=None):
     )
 
 
-def history(*, repository_id=None, organization_id=None, offset=0, limit=25) -> ScanPage:
+def history(*, repository_id=None, organization_id=_CURRENT, offset=0, limit=25) -> ScanPage:
     where = conditions(repository_id, organization_id)
     with session_scope() as session:
         total = session.scalar(select(func.count()).select_from(Scan).where(*where))
@@ -33,7 +39,7 @@ def history(*, repository_id=None, organization_id=None, offset=0, limit=25) -> 
         )
 
 
-def summary(repository_id=None, organization_id=None) -> AnalyticsResponse:
+def summary(repository_id=None, organization_id=_CURRENT) -> AnalyticsResponse:
     where = conditions(repository_id, organization_id)
     with session_scope() as session:
         counts = dict(

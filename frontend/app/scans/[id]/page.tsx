@@ -16,6 +16,7 @@ import { number, duration, date } from "@/lib/utils";
 import { PageHeading, LoadingState, ErrorState } from "@/components/States";
 import { StatCard } from "@/components/Stats";
 import { AIReviewCard } from "@/components/AIReviewCard";
+import { PublishCheck } from "@/components/PublishCheck";
 import { RiskScoreCard } from "@/components/RiskScoreCard";
 import { IssueTable } from "@/components/IssueTable";
 import { IssueChart } from "@/components/IssueCharts";
@@ -111,6 +112,7 @@ export default function ScanPage({
           </div>
           <IssueTable issues={scan.issues} />
           <AIReviewCard scan={scan} />
+          <PublishCheck scanId={scan.id} />
           <details className="analysis-note">
             <summary>Analysis scope & limitations</summary>
             <ul>

@@ -7,6 +7,7 @@ from time import perf_counter
 
 from app.core import context
 from app.core.errors import ScanExecutionError, ServiceError
+from app.core.security import require_role
 from app.db.scan_store import SQLScanStore
 from app.schemas.pull_request import ChangedFileResponse
 from app.schemas.scan import ScanResponse, TriggerSource
@@ -40,13 +41,14 @@ def create_pending_scan(
 
 
 def create_scan(repo_url: str, pr_number: int) -> ScanResponse:
+    require_role("member")
     scan = create_pending_scan(repo_url, pr_number)
     return execute_scan(scan.id)
 
 
 def get_scan(scan_id: int) -> ScanResponse:
     scan = store.get(scan_id)
-    if scan is None:
+    if scan is None or scan.organization_id != context.organization_id.get():
         raise ServiceError("Scan not found.", 404)
     return scan
 
@@ -55,7 +57,9 @@ def execute_scan(scan_id: int) -> ScanResponse:
     from app.services import integration_service
 
     # Worker identity comes from the persisted job, never from a broker-supplied tenant ID.
-    existing = get_scan(scan_id)
+    existing = store.get(scan_id)
+    if existing is None:
+        raise ServiceError("Scan not found.", 404)
     with (
         context.organization_scope(existing.organization_id),
         integration_service.repository_credentials(existing.repo_url, existing.organization_id),

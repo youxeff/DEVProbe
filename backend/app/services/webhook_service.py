@@ -74,6 +74,7 @@ def _accept(payload: dict, event: str, delivery_id: str):
             or payload.get("action") not in PR_ACTIONS
             or not installation
             or not installation.active
+            or (get_settings().auth_enabled and installation.organization_id is None)
             or (payload.get("pull_request") or {}).get("draft")
         ):
             return {"status": "ignored"}

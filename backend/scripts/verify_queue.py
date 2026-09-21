@@ -37,6 +37,10 @@ def main():
             "DATABASE_URL": f"sqlite:///{path / 'queue.db'}",
             "REDIS_URL": broker,
             "SCAN_MODE": "async",
+            "AUTH_ENABLED": "true",
+            "REGISTRATION_ENABLED": "true",
+            "APP_ENV": "development",
+            "PUBLIC_URL": f"http://127.0.0.1:{api_port}",
             "EXTERNAL_ANALYZERS": "",
             "PYTHONPATH": str(backend),
         }
@@ -82,6 +86,7 @@ def main():
                         "127.0.0.1",
                         "--port",
                         str(api_port),
+                        "--no-access-log",
                     ],
                 ]
                 for command in commands:
@@ -97,6 +102,19 @@ def main():
                         except httpx.TransportError:
                             pass
                         time.sleep(0.2)
+                    client.headers["origin"] = base
+                    registered = client.post(
+                        base + "/auth/register",
+                        json={
+                            "email": "queue-fixture@example.com",
+                            "password": "queue-fixture-password",
+                            "name": "Queue fixture",
+                            "organization_name": "Queue test",
+                        },
+                    )
+                    registered.raise_for_status()
+                    client.headers["x-csrf-token"] = client.cookies.get("dp_csrf")
+                    org_id = client.get(base + "/auth/session").json()["active_organization"]["id"]
                     response = client.post(
                         base + "/scans",
                         json={
@@ -114,12 +132,14 @@ def main():
                         time.sleep(0.2)
                     assert saved["status"] == "completed", saved
                     assert saved["risk_score"] == 16 and saved["total_issues"] == 4, saved
+                    assert saved["organization_id"] == org_id
                     Celery(broker=broker).send_task("devprobe.scan", args=[scan_id])
                     time.sleep(0.5)
                     again = client.get(base + f"/scans/{scan_id}").json()
                     assert again["started_at"] == saved["started_at"]
                     print(
-                        "PASS: API → Redis → worker → SQL scan; duplicate delivery retained result."
+                        "PASS: authenticated API → Redis → worker → tenant-owned SQL scan; "
+                        "duplicate retained result."
                     )
             except Exception:
                 log.flush()

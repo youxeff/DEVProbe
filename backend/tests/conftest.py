@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.db import session as db_session
 from app.db.database import Base, build_engine
 from app.db.memory_store import MemoryScanStore
+from app.db.scan_store import SQLScanStore
 from app.main import create_app
 from app.services import github_service, scan_service
 
@@ -109,3 +110,18 @@ def file_data():
         "changes": 3,
         "patch": '@@ -1 +1,2 @@\n-print("old")\n+print("new")\n+# TODO: tidy',
     }
+
+
+@pytest.fixture
+def auth_client(monkeypatch):
+    monkeypatch.setenv("AUTH_ENABLED", "true")
+    config.get_settings.cache_clear()
+    monkeypatch.setattr(
+        scan_service,
+        "store",
+        SQLScanStore(),
+    )
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        client.headers["origin"] = "http://localhost:3000"
+        yield client
+    config.get_settings.cache_clear()

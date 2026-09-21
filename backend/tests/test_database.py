@@ -108,6 +108,10 @@ def test_connect_preserves_github_identity_after_rename(response, github_mock, r
 
 
 def test_repo_scope_prevents_cross_scope_read(response, github_mock, repository_data):
+    from app.models import Organization
+
+    with session_scope() as session:
+        session.add(Organization(id=17, name="Scope test"))
     github_mock(response(repository_data), response([]))
     repo = repository_service.connect_repository(PAYLOAD["repo_url"], organization_id=17)
     from app.core.errors import ServiceError

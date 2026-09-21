@@ -34,3 +34,13 @@ class GitHubCheck(Base):
     head_sha: Mapped[str] = mapped_column(String(64))
     check_run_id: Mapped[int | None] = mapped_column(BigInteger)
     scan_id: Mapped[int | None] = mapped_column(ForeignKey("scans.id", ondelete="SET NULL"))
+
+
+class GitHubOAuthState(Base):
+    __tablename__ = "github_oauth_states"
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
+    github_installation_id: Mapped[int] = mapped_column(BigInteger)
+    code_verifier: Mapped[str] = mapped_column(String(100))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

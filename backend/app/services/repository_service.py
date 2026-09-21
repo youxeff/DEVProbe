@@ -2,7 +2,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from app.core import context
 from app.core.errors import ServiceError
+from app.core.security import require_role
 from app.db.session import session_scope
 from app.models import PullRequest, Repository
 from app.services import github_service
@@ -71,7 +73,16 @@ def repository_dict(repo):
     }
 
 
-def connect_repository(repo_url: str, organization_id: int | None = None) -> dict:
+_CURRENT = object()
+
+
+def connect_repository(repo_url: str, organization_id=_CURRENT) -> dict:
+    require_role("member")
+    organization_id = (
+        context.organization_id.get() if organization_id is _CURRENT else organization_id
+    )
+    from app.services.usage_service import audit, check_repository_limit
+
     metadata = github_service.fetch_repo_metadata(repo_url)
     with session_scope() as session:
         github_id = metadata.get("github_repo_id")
@@ -85,15 +96,21 @@ def connect_repository(repo_url: str, organization_id: int | None = None) -> dic
             if github_id is not None
             else None
         )
-        repo = repo or ensure_repository(session, repo_url, organization_id)
+        if repo is None:
+            check_repository_limit(session, organization_id, repo_url)
+            repo = ensure_repository(session, repo_url, organization_id)
         for key, value in metadata.items():
             if hasattr(Repository, key):
                 setattr(repo, key, value.lower() if key == "full_name" else value)
         session.flush()
+        audit(session, organization_id, "repository.connected", repo.id)
         return {**metadata, "id": repo.id}
 
 
-def get_repository(repository_id: int, organization_id: int | None = None) -> dict:
+def get_repository(repository_id: int, organization_id=_CURRENT) -> dict:
+    organization_id = (
+        context.organization_id.get() if organization_id is _CURRENT else organization_id
+    )
     with session_scope() as session:
         repo = session.scalar(
             select(Repository).where(
@@ -105,7 +122,10 @@ def get_repository(repository_id: int, organization_id: int | None = None) -> di
         return repository_dict(repo)
 
 
-def list_repositories(organization_id: int | None = None) -> list[dict]:
+def list_repositories(organization_id=_CURRENT) -> list[dict]:
+    organization_id = (
+        context.organization_id.get() if organization_id is _CURRENT else organization_id
+    )
     with session_scope() as session:
         return [
             repository_dict(repo)

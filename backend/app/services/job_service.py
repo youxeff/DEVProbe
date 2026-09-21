@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import or_, select, update
 
 from app.core.config import get_settings
+from app.core.security import require_role
 from app.db.session import session_scope
 from app.models import Scan
 from app.services import scan_service
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def submit(repo_url: str, pr_number: int):
+    require_role("member")
     if get_settings().scan_mode == "sync":
         return scan_service.create_scan(repo_url, pr_number)
     scan = scan_service.create_pending_scan(repo_url, pr_number)

@@ -1041,5 +1041,236 @@ h3 {
   gap: 5px;
   align-items: center;
 }
-.row-between{display:flex;align-items:center;justify-content:space-between}.repo-icon{color:#178c7b}.file-name{display:flex;align-items:center;gap:8px}.file-name svg{color:#88a3ae}.text-positive{color:#16886e}.text-negative{color:#d1616b}
-@layer base { * { border-color:var(--border); } }
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.repo-icon {
+  color: #178c7b;
+}
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.file-name svg {
+  color: #88a3ae;
+}
+.text-positive {
+  color: #16886e;
+}
+.text-negative {
+  color: #d1616b;
+}
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+}
+
+.account-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+.account-card h1 {
+  font-size: 28px;
+  letter-spacing: -1px;
+  margin: 18px 0 10px;
+  font-weight: 700;
+}
+.account-card h2 {
+  font-size: 18px;
+  font-weight: 650;
+  margin: 0;
+}
+.account-card p {
+  line-height: 1.65;
+  margin: 12px 0;
+}
+.account-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1e6053;
+}
+.auth-card {
+  max-width: 490px;
+  margin: 45px auto;
+}
+.auth-card .eyebrow {
+  margin-top: 25px;
+}
+.account-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+.account-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-form input {
+  font-weight: 400;
+}
+.account-form select,
+.account-card td select,
+.organization-select {
+  background: white;
+  border: 1px solid #dae4e0;
+  border-radius: 7px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.organization-select {
+  max-width: 220px;
+  font-size: 13px;
+}
+.text-action {
+  font-size: 12px;
+  color: #176959;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-card .text-action {
+  margin-top: 22px;
+}
+.account-notice {
+  border: 1px solid #d2e6de;
+  border-radius: 8px;
+  padding: 14px 18px;
+  background: #f3faf6;
+  margin-bottom: 20px;
+}
+.plan-title {
+  text-transform: capitalize;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0;
+}
+.plan-title span {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b8077;
+}
+.usage-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  font-size: 13px;
+  gap: 9px;
+  margin: 15px 0;
+  text-transform: capitalize;
+}
+.usage-row progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 6px;
+  accent-color: #227760;
+}
+.account-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.installation-row {
+  border-top: 1px solid #e5ece9;
+  padding-top: 18px;
+  margin-top: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.checkbox-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #176959;
+  font-size: 13px;
+}
+.invite-form {
+  grid-template-columns: 1fr 150px auto;
+  align-items: end;
+  max-width: 760px;
+}
+.publish-check {
+  margin: 24px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  color: #51655b;
+}
+@media (max-width: 720px) {
+  .invite-form {
+    grid-template-columns: 1fr;
+  }
+  .account-card {
+    padding: 20px;
+  }
+  .organization-select {
+    max-width: 140px;
+  }
+  .settings-grid {
+    display: block;
+  }
+}
+.account-card .table-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+.account-card table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.account-card th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #71847b;
+  padding: 12px 14px;
+  background: #f7faf8;
+}
+.account-card td {
+  text-align: left;
+  padding: 14px;
+  border-bottom: 1px solid #e9efeb;
+  white-space: nowrap;
+}
+.usage-row progress {
+  appearance: none;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e8eeeb;
+}
+.usage-row progress::-webkit-progress-bar {
+  background: #e8eeeb;
+}
+.usage-row progress::-webkit-progress-value {
+  background: #28836d;
+  border-radius: 4px;
+}
+.usage-row progress::-moz-progress-bar {
+  background: #28836d;
+  border-radius: 4px;
+}

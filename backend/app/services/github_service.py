@@ -400,7 +400,7 @@ def verify_installation_owner(user_token: str, installation_id: int) -> dict:
     }
 
 
-def exchange_oauth_code(code: str) -> str:
+def exchange_oauth_code(code: str, code_verifier: str) -> str:
     settings = get_settings()
     if not settings.github_client_id or not settings.github_client_secret:
         raise ServiceError("GitHub OAuth is not configured.", 503)
@@ -412,6 +412,7 @@ def exchange_oauth_code(code: str) -> str:
             "client_id": settings.github_client_id,
             "client_secret": settings.github_client_secret.get_secret_value(),
             "code": code,
+            "code_verifier": code_verifier,
             "redirect_uri": settings.public_url + "/api/backend/github/callback",
         },
     )

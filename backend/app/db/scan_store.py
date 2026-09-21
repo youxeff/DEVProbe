@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import selectinload
 
+from app.core import context
 from app.core.errors import ServiceError
 from app.db.session import session_scope
 from app.models import AIReview, Issue, PullRequest, Scan
@@ -41,6 +42,9 @@ class SQLScanStore:
         if session is None:
             with session_scope() as owned:
                 return self.create(scan, owned)
+        from app.services.usage_service import audit, reserve_scan
+
+        reserve_scan(session, scan.organization_id, scan.repo_url)
         repo = ensure_repository(session, scan.repo_url, scan.organization_id)
         pull = ensure_pull_request(session, repo.id, scan.pr_number)
         values = scan.model_dump(
@@ -49,6 +53,7 @@ class SQLScanStore:
         row = Scan(**values, repository_id=repo.id, pull_request_id=pull.id)
         session.add(row)
         session.flush()
+        audit(session, scan.organization_id, "scan.requested", row.id)
         return snapshot(row)
 
     def get(self, scan_id: int) -> ScanResponse | None:
@@ -109,7 +114,10 @@ class SQLScanStore:
             rows = session.scalars(
                 select(Scan)
                 .options(selectinload(Scan.issues))
-                .where(Scan.repository_id == repository_id)
+                .where(
+                    Scan.repository_id == repository_id,
+                    Scan.organization_id == context.organization_id.get(),
+                )
                 .order_by(Scan.created_at.desc(), Scan.id.desc())
                 .offset(offset)
                 .limit(limit)

@@ -12,18 +12,22 @@ import {
   FolderGit2,
   LayoutDashboard,
   ShieldCheck,
+  Settings,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "./AuthProvider";
 
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
   { href: "/history", label: "Scan history", icon: ChartNoAxesCombined },
   { href: "/architecture", label: "How it works", icon: Blocks },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { session } = useAuth();
   const pathname = usePathname();
   const { data } = useSWR("health", api.health, {
     refreshInterval: 30000,
@@ -77,7 +81,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div>
             <span className="muted">Workspace</span>
             <span className="breadcrumb-slash">/</span>
-            <span>Code quality</span>
+            {session?.enabled && session.user ? (
+              <select
+                className="organization-select"
+                aria-label="Active organization"
+                value={session.active_organization?.id ?? ""}
+                onChange={(event) => {
+                  localStorage.setItem(
+                    "devprobe-organization",
+                    event.target.value,
+                  );
+                  window.location.assign("/");
+                }}
+              >
+                {session.organizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span>Code quality</span>
+            )}
           </div>
           <div className="topbar-right">
             <span
@@ -89,7 +114,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/architecture" aria-label="Documentation">
               <BookOpen size={18} />
             </Link>
-            <span className="avatar">DP</span>
+            <Link
+              className="avatar"
+              href="/settings"
+              aria-label="Account settings"
+            >
+              {session?.user?.name.slice(0, 2).toUpperCase() ?? "DP"}
+            </Link>
           </div>
         </header>
         <main className="main-content">{children}</main>
