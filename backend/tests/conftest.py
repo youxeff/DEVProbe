@@ -5,6 +5,7 @@ import pytest
 import requests
 from fastapi.testclient import TestClient
 
+from app.core import config
 from app.core.config import Settings
 from app.db import session as db_session
 from app.db.database import Base, build_engine
@@ -17,6 +18,8 @@ REPO_URL = "https://github.com/owner/repo"
 
 @pytest.fixture(autouse=True)
 def isolated_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("EXTERNAL_ANALYZERS", "")
+    config.get_settings.cache_clear()
     engine = build_engine(f"sqlite:///{tmp_path / 'test.db'}")
     Base.metadata.create_all(engine)
     monkeypatch.setattr(db_session, "get_engine", lambda: engine)

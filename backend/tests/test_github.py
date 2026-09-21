@@ -162,3 +162,31 @@ def test_response_size_limit(monkeypatch, response, github_mock):
 def test_no_content(response, github_mock):
     github_mock(response(status=204))
     assert github.fetch_repo_contributors(REPO) == []
+
+
+def test_source_is_pinned_and_decoded(response, github_mock):
+    import base64
+
+    from app.services.github_service import fetch_file_at_commit
+
+    mock = github_mock(
+        response(
+            {
+                "type": "file",
+                "size": 4,
+                "encoding": "base64",
+                "content": base64.b64encode(b"x=1\n").decode(),
+            }
+        )
+    )
+    assert fetch_file_at_commit("https://github.com/o/r", "a.py", "a" * 40) == "x=1\n"
+    assert mock.call_args.kwargs["params"] == {"ref": "a" * 40}
+
+
+@pytest.mark.parametrize("path", ["../secret", "/etc/passwd", "a/../../x", "x\\y", "x\x00y"])
+def test_source_path_safety(path):
+    from app.core.errors import ServiceError
+    from app.services.github_service import fetch_file_at_commit
+
+    with pytest.raises(ServiceError):
+        fetch_file_at_commit("https://github.com/o/r", path, "a" * 40)

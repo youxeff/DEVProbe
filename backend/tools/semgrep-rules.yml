@@ -1,0 +1,16 @@
+rules:
+  - id: devprobe-python-eval
+    languages: [python]
+    severity: ERROR
+    message: Dynamic evaluation requires review.
+    pattern: eval(...)
+  - id: devprobe-python-shell
+    languages: [python]
+    severity: ERROR
+    message: Shell invocation requires review.
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+  - id: devprobe-js-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Dynamic evaluation requires review.
+    pattern: eval(...)

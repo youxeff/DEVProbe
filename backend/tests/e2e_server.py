@@ -1,9 +1,14 @@
-
 """Browser test server: real routes/database/analyzers, deterministic GitHub boundary."""
 
+import os
+
+from app.core.config import get_settings
 from app.core.errors import ServiceError
 from app.main import app as app
 from app.services import github_service
+
+os.environ["EXTERNAL_ANALYZERS"] = ""
+get_settings.cache_clear()
 
 REPO = "https://github.com/devprobe-fixtures/review-lab"
 PULL = {

@@ -84,7 +84,10 @@ def execute_scan(scan_id: int) -> ScanResponse:
             scan.analysis_warnings.append(
                 f"{scan.files_without_patch} file(s) have no textual patch; line checks skipped."
             )
-        scan.issues = analyzer_service.analyze_changed_files(files)
+        scan.issues, warnings, scan.tool_executions = analyzer_service.analyze_pull_request(
+            scan.repo_url, scan.head_sha, files
+        )
+        scan.analysis_warnings.extend(warnings)
         scan.total_issues = len(scan.issues)
         counts = Counter(issue.category for issue in scan.issues)
         for category in (

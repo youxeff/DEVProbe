@@ -34,3 +34,25 @@ branch/PR has been created. Local milestone commits retain the work.
   its single-process browser exits between contexts. Normal CI uses Playwright's
   standard browser. The screenshot is actual fixture test output, not product usage.
 - Added POST /pull-requests/{number}, an additive detail endpoint supporting closed PRs.
+
+## M4 — external static analyzers
+
+- Bandit 1.9.4, Radon 6.0.1, ESLint 9.39.5 with the TypeScript parser,
+  and Semgrep OSS 1.177.0 each passed an actual executable fixture test,
+  in that implementation order. The full backend suite passed 161 tests.
+- Verified timeouts, secret-free subprocess environment, ignoring customer
+  ESLint configuration, pinned source reads, unsafe path rejection, canonical
+  results, and retaining other findings when an analyzer fails.
+- At most 50 source files, 1 MB per file, 5 MB total; generated/build files
+  skipped. Tool output is bounded, discarded, and never logged. Source files
+  have generated local names and are deleted with the temporary workspace.
+- Bandit/ESLint/Semgrep findings are filtered to added lines. Radon reports
+  complexity in the changed files (including existing functions); it is not
+  a base-versus-head complexity delta.
+- Safe subprocess execution is not a hostile-code sandbox. No repository code,
+  package hooks, or tests are executed. Hosted deployment still needs OS/container
+  isolation and egress controls for parser vulnerabilities.
+- CLI behavior follows the official [Bandit](https://bandit.readthedocs.io/en/latest/man/bandit.html),
+  [Radon](https://radon.readthedocs.io/en/latest/commandline.html),
+  [ESLint](https://eslint.org/docs/latest/use/command-line-interface), and
+  [Semgrep](https://docs.semgrep.dev/cli-reference) documentation.

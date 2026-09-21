@@ -52,4 +52,5 @@ class ScanResponse(BaseModel):
     completed_at: datetime | None = None
     failure_reason: str | None = None
     issues: list[IssueResponse] = Field(default_factory=list)
+    tool_executions: list[dict] = Field(default_factory=list)
     analysis_warnings: list[str] = Field(default_factory=list)

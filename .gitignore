@@ -29,3 +29,4 @@ htmlcov/
 *.db-wal
 playwright-report/
 test-results/
+node_modules/

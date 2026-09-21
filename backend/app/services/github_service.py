@@ -240,3 +240,39 @@ def fetch_pr_files(repo_url: str, pr_number: int) -> list[dict]:
         }
         for row in _list(repo_url, f"/pulls/{pr_number}/files")
     ]
+
+
+def fetch_file_at_commit(repo_url: str, filename: str, sha: str) -> str:
+    """Read only bounded text at an immutable SHA; never follow download_url."""
+    import base64
+    from pathlib import PurePosixPath
+    from urllib.parse import quote
+
+    path = PurePosixPath(filename)
+    if (
+        path.is_absolute()
+        or ".." in path.parts
+        or "\\" in filename
+        or "\x00" in filename
+        or not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha)
+    ):
+        raise ServiceError("Invalid source file reference.", 422)
+    data, _ = _get(
+        _resource_url(repo_url, "/contents/" + quote(filename, safe="/")),
+        "Source file not available at this commit.",
+        {"ref": sha},
+    )
+    if (
+        not isinstance(data, dict)
+        or data.get("type") != "file"
+        or data.get("size", 1_000_001) > 1_000_000
+        or data.get("encoding") != "base64"
+    ):
+        raise ServiceError("Source file is too large or not supported.", 422)
+    try:
+        source = base64.b64decode(data["content"].replace("\n", ""), validate=True)
+        if len(source) > 1_000_000 or b"\x00" in source:
+            raise ValueError()
+        return source.decode("utf-8")
+    except (ValueError, KeyError, UnicodeDecodeError):
+        raise ServiceError("Source file is not supported UTF-8 text.", 422) from None

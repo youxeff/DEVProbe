@@ -51,6 +51,7 @@ class Scan(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_reason: Mapped[str | None] = mapped_column(Text)
+    tool_executions: Mapped[list] = mapped_column(JSON_TYPE, default=list)
     analysis_warnings: Mapped[list] = mapped_column(JSON_TYPE, default=list)
     issues: Mapped[list["Issue"]] = relationship(  # noqa: F821
         cascade="all, delete-orphan", passive_deletes=True, order_by="Issue.id"

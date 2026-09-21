@@ -1,0 +1,1 @@
+{"name":"devprobe-analysis-tools","version":"0.1.0","private":true,"type":"module","dependencies":{"eslint":"^9.39.0","@typescript-eslint/parser":"^8.48.0"}}
