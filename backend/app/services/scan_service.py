@@ -1,0 +1,185 @@
+"""One workflow for manual scans and, later, queued scans. No HTTP dependencies."""
+
+import logging
+from collections import Counter
+from datetime import UTC, datetime
+from time import perf_counter
+
+from app.core import context
+from app.core.errors import ScanExecutionError, ServiceError
+from app.core.security import require_role
+from app.db.scan_store import SQLScanStore
+from app.schemas.pull_request import ChangedFileResponse
+from app.schemas.scan import ScanResponse, TriggerSource
+from app.services import ai_service, analyzer_service, github_service, scoring_service
+
+logger = logging.getLogger(__name__)
+store = SQLScanStore()
+MAX_PATCH_CHARACTERS = 16_000_000
+
+
+def create_pending_scan(
+    repo_url: str,
+    pr_number: int,
+    trigger_source: TriggerSource = "manual",
+    *,
+    expected_head_sha: str | None = None,
+    session=None,
+) -> ScanResponse:
+    owner, repo = github_service.parse_github_url(repo_url)
+    if isinstance(pr_number, bool) or not isinstance(pr_number, int) or pr_number < 1:
+        raise ServiceError("Pull request number must be a positive integer.", 422)
+    pending = ScanResponse(
+        repo_url=f"https://github.com/{owner}/{repo}",
+        pr_number=pr_number,
+        trigger_source=trigger_source,
+        organization_id=context.organization_id.get(),
+        expected_head_sha=expected_head_sha,
+        created_at=datetime.now(UTC),
+    )
+    return store.create(pending, session=session) if session is not None else store.create(pending)
+
+
+def create_scan(repo_url: str, pr_number: int) -> ScanResponse:
+    require_role("member")
+    scan = create_pending_scan(repo_url, pr_number)
+    return execute_scan(scan.id)
+
+
+def get_scan(scan_id: int) -> ScanResponse:
+    scan = store.get(scan_id)
+    if scan is None or scan.organization_id != context.organization_id.get():
+        raise ServiceError("Scan not found.", 404)
+    return scan
+
+
+def execute_scan(scan_id: int) -> ScanResponse:
+    from app.services import integration_service
+
+    # Worker identity comes from the persisted job, never from a broker-supplied tenant ID.
+    existing = store.get(scan_id)
+    if existing is None:
+        raise ServiceError("Scan not found.", 404)
+    with (
+        context.organization_scope(existing.organization_id),
+        integration_service.repository_credentials(existing.repo_url, existing.organization_id),
+    ):
+        scan = _execute_scan(scan_id)
+        if scan.status == "completed":
+            try:
+                integration_service.publish_scan(scan, automatic=True)
+            except Exception as error:
+                logger.warning(
+                    "check_publish_failed scan_id=%s error_type=%s", scan.id, type(error).__name__
+                )
+        return scan
+
+
+def _execute_scan(scan_id: int) -> ScanResponse:
+    scan, claimed = store.claim(scan_id)
+    if not claimed:
+        return scan  # Repeated task delivery must not run the same scan twice.
+    started = perf_counter()
+    logger.info("scan_started scan_id=%s pr_number=%s", scan.id, scan.pr_number)
+    try:
+        pull = github_service.fetch_pull_request(scan.repo_url, scan.pr_number)
+        if scan.expected_head_sha and pull["head_sha"] != scan.expected_head_sha:
+            raise ServiceError(
+                "This webhook commit is no longer the PR head. Scan the latest commit.", 409
+            )
+        store.update_pull_request(scan.id, pull)
+        if pull["changed_files"] > 3000:
+            raise ServiceError("This PR exceeds GitHub's 3000-file retrieval limit.", 422)
+        files = [
+            ChangedFileResponse.model_validate(file)
+            for file in github_service.fetch_pr_files(scan.repo_url, scan.pr_number)
+        ]
+        if len(files) != pull["changed_files"] or len({f.filename for f in files}) != len(files):
+            raise ServiceError(
+                "GitHub returned an incomplete file list. Please retry the scan.", 409
+            )
+        latest = github_service.fetch_pull_request(scan.repo_url, scan.pr_number)
+        if any(latest[key] != pull[key] for key in ("head_sha", "base_sha", "changed_files")):
+            raise ServiceError("The PR changed during retrieval. Please retry the scan.", 409)
+        if sum(len(f.patch or "") for f in files) > MAX_PATCH_CHARACTERS:
+            raise ServiceError("PR patches exceed the MVP analysis size limit.", 422)
+
+        scan.head_sha, scan.base_sha = pull["head_sha"], pull["base_sha"]
+        scan.changed_files_count = len(files)
+        scan.additions = sum(f.additions for f in files)
+        scan.deletions = sum(f.deletions for f in files)
+        scan.total_changed_lines = scan.additions + scan.deletions
+        scan.files_with_patch = sum(bool(f.patch) for f in files)
+        scan.files_without_patch = len(files) - scan.files_with_patch
+        scan.analysis_warnings = [
+            "Basic findings are heuristics, not confirmed vulnerabilities or proof of coverage.",
+            "Only added lines in GitHub-provided patches are inspected; patches may be incomplete.",
+        ]
+        if scan.files_without_patch:
+            scan.analysis_warnings.append(
+                f"{scan.files_without_patch} file(s) have no textual patch; line checks skipped."
+            )
+        scan.issues, warnings, scan.tool_executions = analyzer_service.analyze_pull_request(
+            scan.repo_url, scan.head_sha, files
+        )
+        scan.analysis_warnings.extend(warnings)
+        scan.total_issues = len(scan.issues)
+        counts = Counter(issue.category for issue in scan.issues)
+        for category in (
+            "security",
+            "complexity",
+            "style",
+            "testing",
+            "maintainability",
+            "documentation",
+        ):
+            setattr(scan, f"{category}_count", counts[category])
+        scan.risk_score, scan.risk_level = scoring_service.calculate_risk(
+            scan.issues,
+            scan.changed_files_count,
+            scan.total_changed_lines,
+        )
+        ai = ai_service.generate_review(scan)
+        scan.ai_status, scan.ai_review = ai.status, ai.review
+        scan.ai_model = ai.model
+        scan.ai_input_tokens, scan.ai_output_tokens = ai.input_tokens, ai.output_tokens
+        scan.ai_estimated_cost = ai.estimated_cost
+        scan.status = "completed"
+    except Exception as error:
+        safe_error = (
+            error
+            if isinstance(error, ServiceError)
+            else ServiceError(
+                "Scan failed due to an internal error.",
+                500,
+            )
+        )
+        scan.status = "failed"
+        scan.failure_reason = safe_error.message
+        # Do not expose a partly scored result as a completed result.
+        scan.issues = []
+        scan.total_issues = 0
+        scan.risk_score = None
+        scan.risk_level = None
+        for category in (
+            "security",
+            "complexity",
+            "style",
+            "testing",
+            "maintainability",
+            "documentation",
+        ):
+            setattr(scan, f"{category}_count", 0)
+        logger.error("scan_failed scan_id=%s error_type=%s", scan.id, type(error).__name__)
+        raise ScanExecutionError(scan.id, safe_error) from None
+    finally:
+        scan.completed_at = datetime.now(UTC)
+        scan.scan_duration_seconds = round(perf_counter() - started, 6)
+        store.save(scan)
+        logger.info(
+            "scan_finished scan_id=%s status=%s duration=%s",
+            scan.id,
+            scan.status,
+            scan.scan_duration_seconds,
+        )
+    return scan

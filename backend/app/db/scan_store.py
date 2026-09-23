@@ -1,0 +1,125 @@
+"""SQL-backed scan snapshots; each operation owns a short transaction."""
+
+from datetime import UTC, datetime
+
+from sqlalchemy import delete, select, update
+from sqlalchemy.orm import selectinload
+
+from app.core import context
+from app.core.errors import ServiceError
+from app.db.session import session_scope
+from app.models import AIReview, Issue, PullRequest, Scan
+from app.schemas.ai_review import AIReviewResponse
+from app.schemas.issue import IssueResponse
+from app.schemas.scan import ScanResponse
+from app.services.repository_service import ensure_pull_request, ensure_repository
+
+
+def snapshot(row: Scan) -> ScanResponse:
+    values = {
+        key: getattr(row, key)
+        for key in ScanResponse.model_fields
+        if key not in {"issues", "ai_review"} and hasattr(row, key)
+    }
+    for key in ("created_at", "started_at", "completed_at"):
+        if values.get(key) and values[key].tzinfo is None:
+            values[key] = values[key].replace(tzinfo=UTC)
+    values["issues"] = [
+        IssueResponse.model_validate(
+            {key: getattr(issue, key) for key in IssueResponse.model_fields}
+        )
+        for issue in row.issues
+    ]
+    if row.ai_review:
+        values["ai_review"] = {
+            key: getattr(row.ai_review, key) for key in AIReviewResponse.model_fields
+        }
+    return ScanResponse.model_validate(values)
+
+
+class SQLScanStore:
+    def create(self, scan: ScanResponse, session=None) -> ScanResponse:
+        if session is None:
+            with session_scope() as owned:
+                return self.create(scan, owned)
+        from app.services.usage_service import audit, reserve_scan
+
+        reserve_scan(session, scan.organization_id, scan.repo_url)
+        repo = ensure_repository(session, scan.repo_url, scan.organization_id)
+        pull = ensure_pull_request(session, repo.id, scan.pr_number)
+        values = scan.model_dump(
+            exclude={"id", "issues", "ai_review", "repository_id", "pull_request_id"}
+        )
+        row = Scan(**values, repository_id=repo.id, pull_request_id=pull.id)
+        session.add(row)
+        session.flush()
+        audit(session, scan.organization_id, "scan.requested", row.id)
+        return snapshot(row)
+
+    def get(self, scan_id: int) -> ScanResponse | None:
+        with session_scope() as session:
+            row = session.scalar(
+                select(Scan).options(selectinload(Scan.issues)).where(Scan.id == scan_id)
+            )
+            return snapshot(row) if row else None
+
+    def claim(self, scan_id: int) -> tuple[ScanResponse, bool]:
+        with session_scope() as session:
+            result = session.execute(
+                update(Scan)
+                .where(Scan.id == scan_id, Scan.status == "pending")
+                .values(status="running", started_at=datetime.now(UTC))
+            )
+            row = session.scalar(
+                select(Scan).options(selectinload(Scan.issues)).where(Scan.id == scan_id)
+            )
+            if row is None:
+                raise ServiceError("Scan not found.", 404)
+            return snapshot(row), result.rowcount == 1
+
+    def save(self, scan: ScanResponse) -> None:
+        with session_scope() as session:
+            row = session.get(Scan, scan.id)
+            if row is None:
+                raise ServiceError("Scan not found.", 404)
+            if row.status == "failed" and scan.status == "completed":
+                raise ServiceError("This scan already expired; start a new scan.", 409)
+            for key, value in scan.model_dump(exclude={"id", "issues", "ai_review"}).items():
+                setattr(row, key, value)
+            if scan.ai_review:
+                if row.ai_review is None:
+                    row.ai_review = AIReview(**scan.ai_review.model_dump())
+                else:
+                    for key, value in scan.ai_review.model_dump().items():
+                        setattr(row.ai_review, key, value)
+            session.execute(delete(Issue).where(Issue.scan_id == scan.id))
+            session.add_all([Issue(scan_id=scan.id, **issue.model_dump()) for issue in scan.issues])
+
+    def update_pull_request(self, scan_id: int, metadata: dict) -> None:
+        with session_scope() as session:
+            scan = session.get(Scan, scan_id)
+            pull = session.get(PullRequest, scan.pull_request_id)
+            for key in ("title", "state", "author", "html_url", "base_branch", "head_branch"):
+                if key in metadata:
+                    setattr(pull, key, metadata[key])
+            for source, target in (
+                ("created_at", "github_created_at"),
+                ("updated_at", "github_updated_at"),
+            ):
+                if metadata.get(source):
+                    setattr(pull, target, datetime.fromisoformat(metadata[source]))
+
+    def history(self, repository_id: int, *, offset=0, limit=100) -> list[ScanResponse]:
+        with session_scope() as session:
+            rows = session.scalars(
+                select(Scan)
+                .options(selectinload(Scan.issues))
+                .where(
+                    Scan.repository_id == repository_id,
+                    Scan.organization_id == context.organization_id.get(),
+                )
+                .order_by(Scan.created_at.desc(), Scan.id.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            return [snapshot(row) for row in rows]

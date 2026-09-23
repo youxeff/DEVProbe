@@ -1,56 +1,50 @@
-from fastapi import APIRouter, HTTPException
-from app.schemas.repository import RepoUrlRequest
-from app.services.github_service import (
-    parse_github_url,
-    fetch_repo_metadata,
-    fetch_repo_commits,
-    fetch_pull_requests,
-    fetch_pr_files
+from typing import Annotated
+
+from fastapi import APIRouter, Path, Query
+
+from app.schemas.repository import (
+    CommitsResponse,
+    ParsedRepositoryResponse,
+    RepositoryResponse,
+    RepoUrlRequest,
 )
+from app.schemas.scan import ScanResponse
+from app.services import github_service, repository_service, scan_service
 
 router = APIRouter()
 
 
-@router.post("/parse-repo-url")
+@router.post("/parse-url", response_model=ParsedRepositoryResponse)
 def parse_repo_url(payload: RepoUrlRequest):
-    try:
-        owner, repo = parse_github_url(payload.repo_url)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
-
-    return {
-        "owner": owner,
-        "repo": repo
-    }
+    owner, repo = github_service.parse_github_url(payload.repo_url)
+    return {"owner": owner, "repo": repo}
 
 
-@router.post("/repo/metadata")
+@router.post("/metadata", response_model=RepositoryResponse)
 def get_repo_metadata(payload: RepoUrlRequest):
-    return fetch_repo_metadata(payload.repo_url)
+    return repository_service.connect_repository(payload.repo_url)
 
 
-@router.post("/repo/commits")
+@router.post("/commits", response_model=CommitsResponse)
 def get_repo_commits(payload: RepoUrlRequest):
-    commits = fetch_repo_commits(payload.repo_url)
-
-    return {
-        "commits": commits
-    }
+    return {"commits": github_service.fetch_repo_commits(payload.repo_url)}
 
 
-@router.post("/repo/pulls")
-def get_repo_pulls(payload: RepoUrlRequest):
-    pulls = fetch_pull_requests(payload.repo_url)
-
-    return {
-        "pulls": pulls
-    }
+@router.get("", response_model=list[RepositoryResponse])
+def list_repositories():
+    return repository_service.list_repositories()
 
 
-@router.post("/repo/pulls/{pr_number}/files")
-def get_pull_request_files(pr_number: int, payload: RepoUrlRequest):
-    files = fetch_pr_files(payload.repo_url, pr_number)
+@router.get("/{repository_id}", response_model=RepositoryResponse)
+def get_repository(repository_id: Annotated[int, Path(gt=0)]):
+    return repository_service.get_repository(repository_id)
 
-    return {
-        "files": files
-    }
+
+@router.get("/{repository_id}/scans", response_model=list[ScanResponse])
+def repository_scans(
+    repository_id: Annotated[int, Path(gt=0)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+):
+    repository_service.get_repository(repository_id)
+    return scan_service.store.history(repository_id, offset=offset, limit=limit)

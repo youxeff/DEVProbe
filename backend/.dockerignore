@@ -1,0 +1,12 @@
+.env*
+.venv
+venv
+__pycache__
+**/__pycache__
+**/node_modules
+**/.venv
+*.db*
+.pytest_cache
+.ruff_cache
+tests
+scripts

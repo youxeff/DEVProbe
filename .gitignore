@@ -5,6 +5,8 @@ __pycache__/
 
 # Environment
 .env
+*.pem
+*.key
 backend/.env
 frontend/.env.local
 
@@ -15,3 +17,18 @@ frontend/out/
 
 # OS
 .DS_Store
+
+# Local development and test outputs
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+playwright-report/
+test-results/
+node_modules/

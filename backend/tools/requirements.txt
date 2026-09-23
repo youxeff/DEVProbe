@@ -1,0 +1,2 @@
+# Separate tool environment avoids coupling Semgrep dependencies to the API.
+semgrep==1.177.0

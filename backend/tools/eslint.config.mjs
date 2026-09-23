@@ -1,0 +1,2 @@
+import parser from '@typescript-eslint/parser';
+export default [{files:['**/*.{js,jsx,ts,tsx,mjs,cjs}'],languageOptions:{parser,ecmaVersion:'latest',sourceType:'module',parserOptions:{ecmaFeatures:{jsx:true}}},linterOptions:{noInlineConfig:true},rules:{'no-eval':'error','no-implied-eval':'error','no-debugger':'error','no-constant-condition':'error','no-unreachable':'error','eqeqeq':'warn','no-console':'warn'}}];
